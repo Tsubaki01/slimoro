@@ -46,7 +46,7 @@ runs:
     - run: echo "📦 Starting dependency installation! Enjoy the magic..."
       shell: bash
     - name: Install Dependencies
-      run: pnpm install
+      run: pnpm install --frozen-lockfile
       shell: bash
     - run: echo "📦 Dependency installation complete!"
       shell: bash
