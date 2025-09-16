@@ -1,0 +1,52 @@
+name: 'Setup Node.js and Dependencies'
+description: 'Sets up the Node.js environment, installs pnpm, and installs project dependencies.'
+inputs:
+  node-version:
+    description: 'The Node.js version to use'
+    required: false
+    default: '22.x'
+  pnpm-version:
+    description: 'The pnpm version to use'
+    required: false
+    default: '10'
+runs:
+  using: 'composite'
+  steps:
+    # Node.js セットアップ
+    - run: |
+        echo "⚡️ Starting Node.js environment setup: using version ${{ inputs.node-version }}!"
+      shell: bash
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    - run: echo "⚡️ Node.js setup complete!"
+      shell: bash
+    # pnpm セットアップ
+    - run: |
+        echo "✨ Starting pnpm setup: using version ${{ inputs.pnpm-version }}!"
+      shell: bash
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: ${{ inputs.pnpm-version }}
+    - run: echo "✨ pnpm setup complete!"
+      shell: bash
+    # pnpm キャッシュ セットアップ
+    - run: echo "💾 Starting pnpm store cache process!"
+      shell: bash
+    - name: Setup pnpm Cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.pnpm-store
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+    - run: echo "💾 pnpm store cache process succeeded!"
+      shell: bash
+    # 依存関係のインストール
+    - run: echo "📦 Starting dependency installation! Enjoy the magic..."
+      shell: bash
+    - name: Install Dependencies
+      run: pnpm install
+      shell: bash
+    - run: echo "📦 Dependency installation complete!"
+      shell: bash
