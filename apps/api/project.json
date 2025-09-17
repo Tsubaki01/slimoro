@@ -8,7 +8,7 @@
     "build": {
       "executor": "nx:run-commands",
         "options": {
-        "command": "wrangler build --outdir dist",
+        "command": "wrangler deploy --dry-run --outdir dist",
         "cwd": "apps/api"
       },
       "outputs": ["{workspaceRoot}/apps/api/dist"]
