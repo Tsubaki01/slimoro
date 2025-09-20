@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini API 画像生成デモ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-section, .output-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.95rem;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .image-upload {
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+
+        .image-upload:hover {
+            border-color: #667eea;
+            background: #f5f5ff;
+        }
+
+        .image-upload.has-image {
+            border-color: #4caf50;
+            background: #f1f8f4;
+        }
+
+        .upload-text {
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        .image-preview {
+            margin-top: 15px;
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .result-container {
+            background: #f8f8f8;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-placeholder {
+            color: #aaa;
+            text-align: center;
+        }
+
+        .result-image {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .result-text {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c62828;
+        }
+
+        .download-btn {
+            margin-top: 15px;
+            background: #4caf50;
+            color: white;
+        }
+
+        .download-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Gemini API 画像生成デモ</h1>
+            <p>Gemini 2.5 Flash Image (Nano Banana) を使用した画像生成</p>
+        </div>
+
+        <div class="main">
+            <div class="input-section">
+                <h2 class="section-title">入力</h2>
+
+                <div class="form-group">
+                    <label for="prompt">プロンプト（必須）</label>
+                    <textarea
+                        id="prompt"
+                        placeholder="例: 猫が宇宙飛行士の格好をして月面を歩いている画像を生成してください"
+                        maxlength="10000"
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>入力画像（オプション）</label>
+                    <div class="image-upload" id="imageUploadArea">
+                        <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                        <div class="upload-text">
+                            画像をクリックまたはドラッグ&ドロップ
+                        </div>
+                        <div id="imagePreviewContainer"></div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="generateBtn" class="btn-primary">
+                        画像を生成
+                    </button>
+                    <button id="clearBtn" class="btn-secondary">
+                        クリア
+                    </button>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h2 class="section-title">生成結果</h2>
+
+                <div class="result-container" id="resultContainer">
+                    <div class="result-placeholder">
+                        生成された画像がここに表示されます
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/gemini/generate-image';
+
+        const elements = {
+            prompt: document.getElementById('prompt'),
+            imageInput: document.getElementById('imageInput'),
+            imageUploadArea: document.getElementById('imageUploadArea'),
+            imagePreviewContainer: document.getElementById('imagePreviewContainer'),
+            generateBtn: document.getElementById('generateBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            resultContainer: document.getElementById('resultContainer')
+        };
+
+        let uploadedImage = null;
+        let uploadedImageMimeType = null;
+
+        // 画像アップロード処理
+        elements.imageUploadArea.addEventListener('click', () => {
+            elements.imageInput.click();
+        });
+
+        elements.imageInput.addEventListener('change', handleImageUpload);
+
+        // ドラッグ&ドロップ処理
+        elements.imageUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elements.imageUploadArea.style.borderColor = '#667eea';
+            elements.imageUploadArea.style.background = '#f5f5ff';
+        });
+
+        elements.imageUploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            if (uploadedImage) {
+                elements.imageUploadArea.style.borderColor = '#4caf50';
+                elements.imageUploadArea.style.background = '#f1f8f4';
+            } else {
+                elements.imageUploadArea.style.borderColor = '#e0e0e0';
+                elements.imageUploadArea.style.background = '#fafafa';
+            }
+        });
+
+        elements.imageUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                handleImageFile(files[0]);
+            }
+        });
+
+        async function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleImageFile(file);
+            }
+        }
+
+        async function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target.result.split(',')[1];
+                uploadedImage = base64;
+                uploadedImageMimeType = file.type;
+
+                elements.imagePreviewContainer.innerHTML = `
+                    <img src="${e.target.result}" class="image-preview" alt="Preview">
+                `;
+                elements.imageUploadArea.classList.add('has-image');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 画像生成処理
+        elements.generateBtn.addEventListener('click', generateImage);
+
+        async function generateImage() {
+            const prompt = elements.prompt.value.trim();
+
+            if (!prompt) {
+                alert('プロンプトを入力してください');
+                return;
+            }
+
+            elements.generateBtn.disabled = true;
+            elements.resultContainer.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>画像を生成中...</div>
+                </div>
+            `;
+
+            try {
+                const requestBody = {
+                    prompt: prompt
+                };
+
+                if (uploadedImage) {
+                    requestBody.inputImage = uploadedImage;
+                    requestBody.mimeType = uploadedImageMimeType || 'image/png';
+                }
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error?.message || 'エラーが発生しました');
+                }
+
+                displayResult(data);
+            } catch (error) {
+                console.error('Error:', error);
+                elements.resultContainer.innerHTML = `
+                    <div class="error">
+                        <strong>エラー:</strong> ${error.message}
+                    </div>
+                `;
+            } finally {
+                elements.generateBtn.disabled = false;
+            }
+        }
+
+        function displayResult(data) {
+            let html = '';
+
+            if (data.images && data.images.length > 0) {
+                data.images.forEach((imageBase64, index) => {
+                    const imageUrl = `data:image/png;base64,${imageBase64}`;
+                    html += `
+                        <img src="${imageUrl}" class="result-image" alt="Generated image ${index + 1}">
+                        <button class="download-btn" onclick="downloadImage('${imageBase64}', ${index})">
+                            画像をダウンロード
+                        </button>
+                    `;
+                });
+            }
+
+            if (data.text) {
+                html += `
+                    <div class="result-text">
+                        ${data.text}
+                    </div>
+                `;
+            }
+
+            if (!html) {
+                html = '<div class="error">画像の生成に失敗しました</div>';
+            }
+
+            elements.resultContainer.innerHTML = html;
+        }
+
+        function downloadImage(base64Data, index) {
+            const link = document.createElement('a');
+            link.href = `data:image/png;base64,${base64Data}`;
+            link.download = `generated-image-${index + 1}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // クリア処理
+        elements.clearBtn.addEventListener('click', () => {
+            elements.prompt.value = '';
+            uploadedImage = null;
+            uploadedImageMimeType = null;
+            elements.imageInput.value = '';
+            elements.imagePreviewContainer.innerHTML = '';
+            elements.imageUploadArea.classList.remove('has-image');
+            elements.imageUploadArea.style.borderColor = '#e0e0e0';
+            elements.imageUploadArea.style.background = '#fafafa';
+            elements.resultContainer.innerHTML = `
+                <div class="result-placeholder">
+                    生成された画像がここに表示されます
+                </div>
+            `;
+        });
+
+        // サンプルプロンプトを設定
+        const samplePrompts = [
+            "富士山の頂上で朝日を見ている宇宙飛行士",
+            "サイバーパンク風の東京の夜景",
+            "水彩画風の桜並木と古い日本家屋",
+            "ネオンで輝く未来都市を飛ぶドラゴン",
+            "宇宙空間に浮かぶ巨大な図書館"
+        ];
+
+        // ランダムなサンプルプロンプトを設定
+        window.addEventListener('load', () => {
+            const randomPrompt = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
+            elements.prompt.placeholder = `例: ${randomPrompt}`;
+        });
+    </script>
+</body>
+</html>

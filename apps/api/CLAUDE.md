@@ -17,7 +17,7 @@ Hono frameworkとCloudflare Workersを使用して構築されています。
 apps/api/
 ├── src/
 │   ├── index.ts        # エントリーポイント
-│   ├── routes/         # APIルート定義
+│   ├── app/         # APIルート定義
 │   ├── middleware/     # ミドルウェア
 │   ├── lib/           # ユーティリティ
 │   └── types/         # 型定義

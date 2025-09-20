@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@google/genai": "^1.20.0",
+    "@hono/node-server": "^1.19.3",
     "hono": "^4.8.9"
   },
   "devDependencies": {
