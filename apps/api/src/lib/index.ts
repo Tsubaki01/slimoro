@@ -1,0 +1,1 @@
+export { GeminiClient, createGeminiClient } from './client';

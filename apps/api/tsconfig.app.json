@@ -5,15 +5,14 @@
     "types": [
       "node",
       "@cloudflare/workers-types/experimental",
-      "@cloudflare/vitest-pool-workers"
     ],
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
     "esModuleInterop": true,
-    "target": "es2021",
-    "lib": ["es2021"],
-    "module": "es2022",
-    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
@@ -26,7 +25,8 @@
     "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "baseUrl": "."
   },
   "include": ["src/**/*.ts"],
   "exclude": [

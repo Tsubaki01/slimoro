@@ -1,11 +1,18 @@
-import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
-export default defineWorkersConfig({
+const __filename = fileURLToPath(import.meta.url);
+const __dirnameLocal = dirname(__filename);
+
+export default defineConfig({
+  plugins: [
+    tsconfigPaths({
+      root: __dirnameLocal,
+    }),
+  ],
   test: {
-    poolOptions: {
-      workers: {
-        wrangler: { configPath: './wrangler.toml' },
-      },
-    },
+    environment: 'node',
   },
 });

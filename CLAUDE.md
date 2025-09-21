@@ -16,7 +16,33 @@ Slimoroは、ダイエットが失敗してしまう人向けのダイエット�
 - 体重などのデータをグラフ化する機能
 
 ## Development Commands
-<!-- あとで書く -->
+
+### API開発コマンド
+```bash
+# 開発サーバー起動（ポート8788）
+pnpm api:dev
+
+# ビルド（デプロイ前の検証）
+pnpm api:build
+
+# テスト実行
+pnpm api:test
+
+# Lint実行
+pnpm api:lint
+```
+
+### 全体テストコマンド
+```bash
+# 全プロジェクトのテスト実行
+pnpm test
+
+# 全プロジェクトのテストをウォッチモードで実行
+pnpm test:watch
+
+# 変更されたファイルに関連するテストのみ実行
+pnpm test:affected
+```
 
 ## Architecture & Design
 
