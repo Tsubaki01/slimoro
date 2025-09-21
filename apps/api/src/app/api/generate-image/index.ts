@@ -87,28 +87,61 @@ app.post(
   validator,
   // メインハンドラー
   async (c) => {
+    console.log('[API] 画像生成リクエスト開始');
     try {
       // 1. バリデーション済みデータの取得
       const validatedData = c.req.valid('form');
       const { prompt, image } = validatedData;
+      console.log('[API] バリデーション完了:', {
+        prompt: prompt.substring(0, 50),
+        imageSize: image.size,
+        imageType: image.type
+      });
 
-      // 2. ファイルをBase64に変換
-      const arrayBuffer = await image.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const base64 = buffer.toString('base64');
+      // 2. ファイルをBase64に変換（Cloudflare Workers対応）
+      let base64: string;
+      try {
+        const arrayBuffer = await image.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // Uint8ArrayをBase64に変換
+        const binaryString = Array.from(uint8Array)
+          .map(byte => String.fromCharCode(byte))
+          .join('');
+        base64 = btoa(binaryString);
+
+        console.log('[API] Base64変換完了:', {
+          originalSize: arrayBuffer.byteLength,
+          base64Size: base64.length
+        });
+      } catch (error) {
+        console.error('[API] Base64変換エラー:', error);
+        return c.json(
+          {
+            success: false,
+            error: 'ファイルの変換に失敗しました',
+          },
+          500
+        );
+      }
 
       // 3. Gemini APIクライアントの作成
+      console.log('[API] Geminiクライアント作成中...');
       const client = createGeminiClient(c.env);
+      console.log('[API] Geminiクライアント作成完了');
 
       // 4. 画像生成の実行
+      console.log('[API] Gemini API呼び出し開始...');
       const result = await client.generateImage({
         prompt,
         imageBase64: base64,
         mimeType: image.type,
       });
+      console.log('[API] Gemini API呼び出し完了:', { success: result.success });
 
       // 5. API呼び出し結果の検証
       if (!result.success) {
+        console.error('[API] 画像生成失敗:', result.error);
         return c.json(
           {
             success: false,
@@ -119,6 +152,7 @@ app.post(
       }
 
       // 6. 成功レスポンスの返却
+      console.log('[API] 画像生成成功');
       return c.json({
         success: true,
         imageBase64: result.imageBase64,
@@ -126,7 +160,10 @@ app.post(
       });
     } catch (error) {
       // 7. エラーハンドリング
-      console.error('Error in generate-image endpoint:', error);
+      console.error('[API] generate-imageエンドポイントエラー:', error);
+      if (error instanceof Error) {
+        console.error('[API] エラースタック:', error.stack);
+      }
       return c.json(
         {
           success: false,

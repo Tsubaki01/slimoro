@@ -256,6 +256,7 @@
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        console.log('フォーム送信開始');
 
         // UIをリセット
         error.classList.remove('show');
@@ -266,6 +267,11 @@
         try {
           const formData = new FormData(form);
           const file = formData.get('image');
+          console.log('FormData作成:', {
+            prompt: formData.get('prompt'),
+            fileSize: file.size,
+            fileType: file.type
+          });
 
           // 入力画像をプレビュー
           const reader = new FileReader();
@@ -275,15 +281,38 @@
           reader.readAsDataURL(file);
 
           // APIリクエスト（開発サーバーのURLを使用）
-          const response = await fetch('http://localhost:8788/api/generate-image', {
-            method: 'POST',
-            body: formData,
+          console.log('APIリクエスト送信中...');
+          let response;
+          try {
+            response = await fetch('http://localhost:8788/api/generate-image', {
+              method: 'POST',
+              body: formData,
+            });
+            console.log('fetch完了 - レスポンス受信');
+          } catch (fetchError) {
+            console.error('fetch自体が失敗:', fetchError);
+            throw new Error(`ネットワークエラー: ${fetchError.message}`);
+          }
+          console.log('APIレスポンス受信:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries())
           });
 
-          const data = await response.json();
+          let data;
+          try {
+            const responseText = await response.text();
+            console.log('レスポンステキスト:', responseText);
+            data = JSON.parse(responseText);
+            console.log('パース後のデータ:', data);
+          } catch (parseError) {
+            console.error('JSONパースエラー:', parseError);
+            throw new Error('サーバーからの応答が不正です');
+          }
 
           if (!response.ok) {
-            throw new Error(data.error || 'エラーが発生しました');
+            console.error('APIエラー:', data);
+            throw new Error(data.error || data.message || 'エラーが発生しました');
           }
 
           if (data.success) {
@@ -294,6 +323,7 @@
             throw new Error(data.error || '画像生成に失敗しました');
           }
         } catch (err) {
+          console.error('エラー詳細:', err);
           error.textContent = `エラー: ${err.message}`;
           error.classList.add('show');
         } finally {
