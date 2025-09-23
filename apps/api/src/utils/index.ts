@@ -1,0 +1,1 @@
+export { fileToBase64, ImageConversionError } from './image-converter';

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { Env } from '@/types';
 import { createGeminiClient } from '@/lib';
+import { fileToBase64, ImageConversionError } from '@/utils';
 
 const app = new Hono<Env>();
 
@@ -95,20 +96,16 @@ app.post(
       // 2. ファイルをBase64に変換（Cloudflare Workers対応）
       let base64: string;
       try {
-        const arrayBuffer = await image.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-
-        // Uint8ArrayをBase64に変換
-        const binaryString = Array.from(uint8Array)
-          .map(byte => String.fromCharCode(byte))
-          .join('');
-        base64 = btoa(binaryString);
-
+        base64 = await fileToBase64(image);
       } catch (error) {
+        const errorMessage = error instanceof ImageConversionError
+          ? error.message
+          : 'ファイルの変換に失敗しました';
+
         return c.json(
           {
             success: false,
-            error: 'ファイルの変換に失敗しました',
+            error: errorMessage,
           },
           500
         );
