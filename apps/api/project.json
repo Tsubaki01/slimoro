@@ -52,7 +52,8 @@
       "executor": "@nx/vite:test",
       "outputs": ["{options.reportsDirectory}"],
       "options": {
-        "reportsDirectory": "../../coverage/apps/api"
+        "reportsDirectory": "../../coverage/apps/api",
+        "config": "apps/api/vitest.config.ts"
       }
     },
     "deploy": {

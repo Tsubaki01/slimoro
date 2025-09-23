@@ -1,38 +1,4 @@
-import { Hono } from 'hono';
-import { poweredBy } from 'hono/powered-by';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { serveStatic } from 'hono/cloudflare-workers';
-import health from './app/health';
-import api from './app/api';
-import { Env } from './types';
-
-const app = new Hono<Env>();
-
-app.use('*', logger());
-app.use('*', poweredBy());
-app.use(
-  '*',
-  cors({
-    origin: '*', // 開発環境ではすべてのオリジンを許可
-    credentials: true,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
-  })
-);
-
-// ルートエンドポイント
-app.get('/', (c) => {
-  return c.json({
-    message: 'Slimoro API Server',
-    version: '1.0.0',
-  });
-});
-
-// 静的ファイルの配信（publicフォルダ）
-app.get('/demo', async (c) => {
-  // 開発環境では直接HTMLファイルの内容を返す
-  const html = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
@@ -290,6 +256,7 @@ app.get('/demo', async (c) => {
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        console.log('フォーム送信開始');
 
         // UIをリセット
         error.classList.remove('show');
@@ -300,6 +267,11 @@ app.get('/demo', async (c) => {
         try {
           const formData = new FormData(form);
           const file = formData.get('image');
+          console.log('FormData作成:', {
+            prompt: formData.get('prompt'),
+            fileSize: file.size,
+            fileType: file.type
+          });
 
           // 入力画像をプレビュー
           const reader = new FileReader();
@@ -308,38 +280,51 @@ app.get('/demo', async (c) => {
           };
           reader.readAsDataURL(file);
 
-          // 同一オリジンでのAPIリクエスト
+          // APIリクエスト（開発サーバーのURLを使用）
+          console.log('APIリクエスト送信中...');
           let response;
           try {
-            response = await fetch('/api/generate-image', {
+            response = await fetch('http://localhost:8788/api/generate-image', {
               method: 'POST',
               body: formData,
             });
+            console.log('fetch完了 - レスポンス受信');
           } catch (fetchError) {
-            throw new Error(\`ネットワークエラー: \${fetchError.message}\`);
+            console.error('fetch自体が失敗:', fetchError);
+            throw new Error(`ネットワークエラー: ${fetchError.message}`);
           }
+          console.log('APIレスポンス受信:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries())
+          });
 
           let data;
           try {
             const responseText = await response.text();
+            console.log('レスポンステキスト:', responseText);
             data = JSON.parse(responseText);
+            console.log('パース後のデータ:', data);
           } catch (parseError) {
+            console.error('JSONパースエラー:', parseError);
             throw new Error('サーバーからの応答が不正です');
           }
 
           if (!response.ok) {
+            console.error('APIエラー:', data);
             throw new Error(data.error || data.message || 'エラーが発生しました');
           }
 
           if (data.success) {
             // 生成画像を表示
-            outputImage.src = \`data:\${data.mimeType};base64,\${data.imageBase64}\`;
+            outputImage.src = `data:${data.mimeType};base64,${data.imageBase64}`;
             result.classList.add('show');
           } else {
             throw new Error(data.error || '画像生成に失敗しました');
           }
         } catch (err) {
-          error.textContent = \`エラー: \${err.message}\`;
+          console.error('エラー詳細:', err);
+          error.textContent = `エラー: ${err.message}`;
           error.classList.add('show');
         } finally {
           loading.classList.remove('show');
@@ -368,14 +353,4 @@ app.get('/demo', async (c) => {
       });
     </script>
   </body>
-</html>`;
-
-  return c.html(html);
-});
-
-// APIの健康チェック
-app.route('/health', health);
-// API実装のマウント
-app.route('/api', api);
-
-export default app;
+</html>

@@ -2,7 +2,15 @@
   "name": "api",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "build": "wrangler build",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage"
+  },
   "dependencies": {
+    "@google/genai": "^1.20.0",
     "hono": "^4.8.9"
   },
   "devDependencies": {

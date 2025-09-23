@@ -50,3 +50,7 @@ Thumbs.db
 .claude/*
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
+
+# Hono Variables
+.dev.vars*
+.env*
