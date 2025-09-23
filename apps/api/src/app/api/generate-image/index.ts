@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { Env } from '@/types';
-import { createGeminiClient } from '@/lib';
+import { createNanoBananaClient, type ImageMimeType } from '@/lib/vertex';
 
 const app = new Hono<Env>();
 
@@ -125,19 +125,21 @@ app.post(
         );
       }
 
-      // 3. Gemini APIクライアントの作成
-      console.log('[API] Geminiクライアント作成中...');
-      const client = createGeminiClient(c.env);
-      console.log('[API] Geminiクライアント作成完了');
+      // 3. Nano Bananaクライアントの作成（地理情報ベースのロケーション選択）
+      console.log('[API] Nano Bananaクライアント作成中...');
+      const client = createNanoBananaClient(c.env, c.req.raw);
+      console.log('[API] Nano Bananaクライアント作成完了');
 
       // 4. 画像生成の実行
-      console.log('[API] Gemini API呼び出し開始...');
-      const result = await client.generateImage({
+      console.log('[API] Nano Banana API呼び出し開始...');
+      const result = await client.editImage({
         prompt,
-        imageBase64: base64,
-        mimeType: image.type,
+        baseImage: {
+          base64: base64,
+          mimeType: image.type as ImageMimeType,
+        },
       });
-      console.log('[API] Gemini API呼び出し完了:', { success: result.success });
+      console.log('[API] Nano Banana API呼び出し完了:', { success: result.success });
 
       // 5. API呼び出し結果の検証
       if (!result.success) {

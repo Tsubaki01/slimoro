@@ -29,6 +29,7 @@ apps/api/
 ### 主要技術スタック
 - **Framework**: Hono v4
 - **Runtime**: Cloudflare Workers
+- **AI SDK**: @ai-sdk/google-vertex (Vertex AI)
 - **Validation**: Zod + @hono/zod-validator
 - **Testing**: Vitest
 - **Build**: Vite + Wrangler
@@ -99,11 +100,41 @@ Zodスキーマによる入力検証を徹底
 - Production: 手動デプロイ（タグ作成時）
 
 ### 環境変数
-```toml
-# wrangler.toml
-[vars]
-ENVIRONMENT = "development"
+- 開発環境: ルートの``./.dev.vars``で設定
+- 本番環境: Cloudflare Workersのダッシュボードで設定
 
-[env.production.vars]
-ENVIRONMENT = "production"
-```
+### Vertex AI 設定
+画像生成にはGoogle Cloud Service Account認証が必要です。
+
+**環境変数の設定:**
+- `GOOGLE_CLIENT_EMAIL`: サービスアカウントのメールアドレス
+- `GOOGLE_PRIVATE_KEY`: サービスアカウントの秘密鍵
+- `GOOGLE_PRIVATE_KEY_ID`: 秘密鍵ID（オプション）
+- `GOOGLE_LOCATION`: Vertex AIロケーション（オプション）
+
+### 地理情報ベースの動的ロケーション選択
+
+`GOOGLE_LOCATION`が設定されていない場合、Cloudflareの地理情報から最適なVertex AIリージョンを自動選択します。
+
+**優先順位:**
+1. 環境変数での明示的設定（`GOOGLE_LOCATION`）
+2. Cloudflare Coloコードからのマッピング
+3. 国コードからのマッピング
+4. 大陸コードからのマッピング
+5. デフォルト値（`us-central1`）
+
+**地理的マッピング例:**
+- 日本（NRT）→ `asia-northeast1`
+- シンガポール（SIN）→ `asia-southeast1`
+- ダラス（DFW）→ `us-central1`
+- ロンドン（LHR）→ `europe-west2`
+
+この機能により、ユーザーの地理的位置に最も近いVertex AIリージョンが自動選択され、レイテンシーが最小化されます。
+
+**サポートされているモデル:**
+- imagen-3.0-generate-001
+- imagen-3.0-generate-002
+- imagen-3.0-fast-generate-001
+- imagen-4.0-generate-preview-06-06
+- imagen-4.0-fast-generate-preview-06-06
+- imagen-4.0-ultra-generate-preview-06-06

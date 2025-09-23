@@ -227,7 +227,7 @@ app.get('/demo', async (c) => {
   </head>
   <body>
     <div class="container">
-      <h1>🎨 Gemini Image Generation Demo</h1>
+      <h1>🎨 Nano Banana Image Generation Demo</h1>
 
       <form id="generateForm">
         <div class="form-group">
@@ -263,7 +263,7 @@ app.get('/demo', async (c) => {
       <div class="loading" id="loading">
         <div class="spinner"></div>
         <p style="margin-top: 15px; color: #666">
-          画像を生成中です...しばらくお待ちください
+          Nano Bananaで画像を生成中です...しばらくお待ちください
         </p>
       </div>
 

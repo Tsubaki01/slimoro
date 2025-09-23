@@ -1,1 +1,1 @@
-export { GeminiClient, createGeminiClient } from './client';
+export * from './vertex';

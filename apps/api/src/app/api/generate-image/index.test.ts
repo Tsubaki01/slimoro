@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, MockedFunction } from 'vitest';
 import app from './index.js';
-import { createGeminiClient } from '@/lib/client/gemini-client';
+import { createNanoBananaClient } from '@/lib/vertex/nano-banana/nano-banana-client';
 
 type ApiResponse = {
   success: boolean;
@@ -11,8 +11,8 @@ type ApiResponse = {
 };
 
 // モックの設定
-vi.mock('@/lib/client/gemini-client', () => ({
-  createGeminiClient: vi.fn().mockReturnValue({
+vi.mock('@/lib/vertex/nano-banana/nano-banana-client', () => ({
+  createNanoBananaClient: vi.fn().mockReturnValue({
     generateImage: vi.fn(),
   }),
 }));
@@ -23,10 +23,10 @@ describe('Generate Image Endpoint', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenerateImage = vi.fn();
-    const mockedCreateGeminiClient = createGeminiClient as unknown as MockedFunction<typeof createGeminiClient>;
-    mockedCreateGeminiClient.mockReturnValue({
+    const mockedCreateNanoBananaClient = createNanoBananaClient as unknown as MockedFunction<typeof createNanoBananaClient>;
+    mockedCreateNanoBananaClient.mockReturnValue({
       generateImage: mockGenerateImage,
-    } as unknown as ReturnType<typeof createGeminiClient>);
+    } as unknown as ReturnType<typeof createNanoBananaClient>);
   });
 
   describe('POST /', () => {
@@ -133,7 +133,9 @@ describe('Generate Image Endpoint', () => {
           body: formData,
         },
         {
-          GEMINI_API_KEY: 'test-api-key',
+          GOOGLE_CLIENT_EMAIL: 'test@example.com',
+          GOOGLE_PRIVATE_KEY: 'test-key',
+          GOOGLE_PROJECT_ID: 'test-project-id',
         }
       );
 
@@ -144,7 +146,7 @@ describe('Generate Image Endpoint', () => {
       expect(data.mimeType).toBe('image/png');
     });
 
-    it('should handle Gemini API errors', async () => {
+    it('should handle Nano Banana API errors', async () => {
       mockGenerateImage.mockResolvedValue({
         success: false,
         error: 'API error occurred',
@@ -162,7 +164,9 @@ describe('Generate Image Endpoint', () => {
           body: formData,
         },
         {
-          GEMINI_API_KEY: 'test-api-key',
+          GOOGLE_CLIENT_EMAIL: 'test@example.com',
+          GOOGLE_PRIVATE_KEY: 'test-key',
+          GOOGLE_PROJECT_ID: 'test-project-id',
         }
       );
 
@@ -187,7 +191,9 @@ describe('Generate Image Endpoint', () => {
           body: formData,
         },
         {
-          GEMINI_API_KEY: 'test-api-key',
+          GOOGLE_CLIENT_EMAIL: 'test@example.com',
+          GOOGLE_PRIVATE_KEY: 'test-key',
+          GOOGLE_PROJECT_ID: 'test-project-id',
         }
       );
 
@@ -224,7 +230,8 @@ describe('Generate Image Endpoint', () => {
             body: formData,
           },
           {
-            GEMINI_API_KEY: 'test-api-key',
+            GOOGLE_CLIENT_EMAIL: 'test@example.com',
+            GOOGLE_PRIVATE_KEY: 'test-key',
           }
         );
 
@@ -233,7 +240,9 @@ describe('Generate Image Endpoint', () => {
         expect(data.success).toBe(true);
         expect(mockGenerateImage).toHaveBeenCalledWith(
           expect.objectContaining({
-            mimeType: imageType.type,
+            inputImage: expect.objectContaining({
+              mimeType: imageType.type,
+            }),
           })
         );
       }
@@ -258,7 +267,9 @@ describe('Generate Image Endpoint', () => {
           body: formData,
         },
         {
-          GEMINI_API_KEY: 'test-api-key',
+          GOOGLE_CLIENT_EMAIL: 'test@example.com',
+          GOOGLE_PRIVATE_KEY: 'test-key',
+          GOOGLE_PROJECT_ID: 'test-project-id',
         }
       );
 
@@ -287,7 +298,9 @@ describe('Generate Image Endpoint', () => {
           body: formData,
         },
         {
-          GEMINI_API_KEY: 'test-api-key',
+          GOOGLE_CLIENT_EMAIL: 'test@example.com',
+          GOOGLE_PRIVATE_KEY: 'test-key',
+          GOOGLE_PROJECT_ID: 'test-project-id',
         }
       );
 
