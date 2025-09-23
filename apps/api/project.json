@@ -46,7 +46,13 @@
       }
     },
     "lint": {
-      "executor": "@nx/eslint:lint"
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "apps/api/**/*.{ts,tsx,js,jsx,cjs,mjs,cts,mts}",
+          "eslint.config.mjs"
+        ]
+      }
     },
     "test": {
       "executor": "@nx/vite:test",

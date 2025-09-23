@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach, MockedFunction } from 'vitest';
-import app from './index.js';
+import { beforeEach, describe, expect, it, MockedFunction,vi } from 'vitest';
+
 import { createGeminiClient } from '@/lib/client/gemini-client';
+
+import app from './index.js';
 
 type ApiResponse = {
   success: boolean;

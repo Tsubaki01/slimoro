@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach,describe, expect, it, vi } from 'vitest';
+
 import { GeminiClient } from './gemini-client';
 
 // @google/genai のモック
@@ -49,7 +50,7 @@ describe('GeminiClient', () => {
         ],
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
       GoogleGenAI.mockImplementation(() => ({
         models: {
@@ -75,7 +76,7 @@ describe('GeminiClient', () => {
         candidates: [],
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
       GoogleGenAI.mockImplementation(() => ({
         models: {
@@ -110,7 +111,7 @@ describe('GeminiClient', () => {
         ],
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
       GoogleGenAI.mockImplementation(() => ({
         models: {
@@ -154,7 +155,7 @@ describe('GeminiClient', () => {
         });
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
       GoogleGenAI.mockImplementation(() => ({
         models: {
@@ -163,7 +164,7 @@ describe('GeminiClient', () => {
       }));
 
       client = new GeminiClient('test-api-key');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
 
       const result = await client.generateImage({
@@ -182,7 +183,7 @@ describe('GeminiClient', () => {
         .fn()
         .mockRejectedValue(new Error('429 Rate limit exceeded'));
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
       GoogleGenAI.mockImplementation(() => ({
         models: {
@@ -191,7 +192,7 @@ describe('GeminiClient', () => {
       }));
 
       client = new GeminiClient('test-api-key');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
 
       const result = await client.generateImage({
@@ -210,7 +211,7 @@ describe('GeminiClient', () => {
         .fn()
         .mockRejectedValue('Non-error object');
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
       GoogleGenAI.mockImplementation(() => ({
         models: {

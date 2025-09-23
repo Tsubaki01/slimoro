@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+
 import generateImage from './generate-image';
 
 const app = new Hono();
