@@ -8,7 +8,7 @@
     "typecheck": "nx run-many -t typecheck --all || tsc -b -v",
     "build": "nx run-many -t build --all",
     "build:check": "nx run-many -t build --all --output-style=stream",
-    "test": "nx run-many -t test --all --skip-nx-cache --output-style=stream -- --reporter verbose",
+    "test": "nx run-many -t test --all --skip-nx-cache --output-style=stream -- --run --reporter verbose",
     "test:watch": "nx run-many -t test --all --output-style=stream -- --watch --reporter verbose",
     "test:affected": "nx affected -t test --output-style=stream -- --reporter verbose",
     "api:dev": "nx serve api",
