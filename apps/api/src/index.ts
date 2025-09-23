@@ -10,11 +10,6 @@ import { Env } from './types';
 const app = new Hono<Env>();
 
 app.use('*', logger());
-app.use('*', async (c, next) => {
-  console.log(`[ROOT] ${c.req.method} ${c.req.url} - リクエスト受信`);
-  await next();
-  console.log(`[ROOT] ${c.req.method} ${c.req.url} - レスポンス送信完了`);
-});
 app.use('*', poweredBy());
 app.use(
   '*',
@@ -295,7 +290,6 @@ app.get('/demo', async (c) => {
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        console.log('フォーム送信開始');
 
         // UIをリセット
         error.classList.remove('show');
@@ -306,11 +300,6 @@ app.get('/demo', async (c) => {
         try {
           const formData = new FormData(form);
           const file = formData.get('image');
-          console.log('FormData作成:', {
-            prompt: formData.get('prompt'),
-            fileSize: file.size,
-            fileType: file.type
-          });
 
           // 入力画像をプレビュー
           const reader = new FileReader();
@@ -320,37 +309,25 @@ app.get('/demo', async (c) => {
           reader.readAsDataURL(file);
 
           // 同一オリジンでのAPIリクエスト
-          console.log('APIリクエスト送信中...');
           let response;
           try {
             response = await fetch('/api/generate-image', {
               method: 'POST',
               body: formData,
             });
-            console.log('fetch完了 - レスポンス受信');
           } catch (fetchError) {
-            console.error('fetch自体が失敗:', fetchError);
             throw new Error(\`ネットワークエラー: \${fetchError.message}\`);
           }
-          console.log('APIレスポンス受信:', {
-            status: response.status,
-            statusText: response.statusText,
-            headers: Object.fromEntries(response.headers.entries())
-          });
 
           let data;
           try {
             const responseText = await response.text();
-            console.log('レスポンステキスト:', responseText);
             data = JSON.parse(responseText);
-            console.log('パース後のデータ:', data);
           } catch (parseError) {
-            console.error('JSONパースエラー:', parseError);
             throw new Error('サーバーからの応答が不正です');
           }
 
           if (!response.ok) {
-            console.error('APIエラー:', data);
             throw new Error(data.error || data.message || 'エラーが発生しました');
           }
 
@@ -362,7 +339,6 @@ app.get('/demo', async (c) => {
             throw new Error(data.error || '画像生成に失敗しました');
           }
         } catch (err) {
-          console.error('エラー詳細:', err);
           error.textContent = \`エラー: \${err.message}\`;
           error.classList.add('show');
         } finally {
