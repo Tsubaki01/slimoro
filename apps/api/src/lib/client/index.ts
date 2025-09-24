@@ -1,1 +1,1 @@
-export { GeminiClient, createGeminiClient } from './gemini-client';
+export { createGeminiClient,GeminiClient } from './gemini-client';

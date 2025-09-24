@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
 import { fileToBase64, ImageConversionError } from './image-converter';
 
 describe('image-converter', () => {

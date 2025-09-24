@@ -1,6 +1,7 @@
-import { defineConfig } from 'vite';
-import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 const __filename = fileURLToPath(import.meta.url);

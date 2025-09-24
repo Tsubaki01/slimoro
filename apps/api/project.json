@@ -46,14 +46,26 @@
       }
     },
     "lint": {
-      "executor": "@nx/eslint:lint"
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "apps/api/**/*.{ts,tsx,js,jsx,cjs,mjs,cts,mts}",
+          "eslint.config.mjs"
+        ]
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p tsconfig.app.json --noEmit --pretty false",
+        "cwd": "apps/api"
+      }
     },
     "test": {
-      "executor": "@nx/vite:test",
-      "outputs": ["{options.reportsDirectory}"],
+      "executor": "nx:run-commands",
       "options": {
-        "reportsDirectory": "../../coverage/apps/api",
-        "config": "apps/api/vitest.config.ts"
+        "command": "vitest run --reporter verbose",
+        "cwd": "apps/api"
       }
     },
     "deploy": {

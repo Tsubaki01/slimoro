@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
+import { afterAll,beforeAll, describe, expect, it } from 'vitest';
+
 import app from '.';
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 
 describe('Health Check Endpoint', () => {
   beforeAll(() => {});
