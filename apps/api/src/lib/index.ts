@@ -1,1 +1,2 @@
-export { createGeminiClient,GeminiClient } from './client';
+export { createGeminiClient, GeminiClient } from './client';
+export { createBodyShapeClient, BodyShapeClient } from './client';

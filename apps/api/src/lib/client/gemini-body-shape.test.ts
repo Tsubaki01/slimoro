@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { GoogleGenAI } from '@google/genai';
 
+import { BodyShapeClient } from './body-shape-client';
 import { GeminiClient } from './gemini-client';
 import type { Subject, TargetWeight, BodyShapeOptions } from '@/types';
 
 vi.mock('@google/genai');
 
-describe('GeminiClient - Body Shape Generation', () => {
-  let client: GeminiClient;
+describe('BodyShapeClient - Body Shape Generation', () => {
+  let client: BodyShapeClient;
   let mockGenAI: any;
 
   beforeEach(() => {
@@ -18,7 +19,7 @@ describe('GeminiClient - Body Shape Generation', () => {
       },
     };
     (GoogleGenAI as any).mockImplementation(() => mockGenAI);
-    client = new GeminiClient('test-api-key');
+    client = new BodyShapeClient('test-api-key');
   });
 
   describe('generateBodyShapePrompt', () => {

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { testClient } from 'hono/testing';
 
-import { createGeminiClient } from '@/lib';
-import type { GeminiClient } from '@/lib/client/gemini-client';
+import { createBodyShapeClient } from '@/lib';
+import type { BodyShapeClient } from '@/lib/client/body-shape-client';
 import app from './index';
 
 vi.mock('@/lib', () => ({
-  createGeminiClient: vi.fn(),
+  createBodyShapeClient: vi.fn(),
 }));
 
 vi.mock('@/utils', async () => {
@@ -18,13 +18,13 @@ vi.mock('@/utils', async () => {
 });
 
 describe('POST /api/generate-image/body-shape', () => {
-  const mockGeminiClient: Partial<GeminiClient> = {
+  const mockBodyShapeClient: Partial<BodyShapeClient> = {
     generateBodyShapeImages: vi.fn(),
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    (createGeminiClient as Mock).mockReturnValue(mockGeminiClient);
+    (createBodyShapeClient as Mock).mockReturnValue(mockBodyShapeClient);
 
     // fileToBase64のモックを成功で初期化
     const { fileToBase64 } = await import('@/utils');
@@ -233,7 +233,7 @@ describe('POST /api/generate-image/body-shape', () => {
 
   describe('成功テスト', () => {
     it('正常なリクエストで複数画像生成に成功する', async () => {
-      (mockGeminiClient.generateBodyShapeImages as Mock).mockResolvedValue({
+      (mockBodyShapeClient.generateBodyShapeImages as Mock).mockResolvedValue({
         success: true,
         images: [
           {
@@ -287,7 +287,7 @@ describe('POST /api/generate-image/body-shape', () => {
     });
 
     it('単一ターゲットでの画像生成に成功する', async () => {
-      (mockGeminiClient.generateBodyShapeImages as Mock).mockResolvedValue({
+      (mockBodyShapeClient.generateBodyShapeImages as Mock).mockResolvedValue({
         success: true,
         images: [
           {
@@ -330,7 +330,7 @@ describe('POST /api/generate-image/body-shape', () => {
 
   describe('エラーハンドリングテスト', () => {
     it('Gemini APIエラーの場合、500エラーを返す', async () => {
-      (mockGeminiClient.generateBodyShapeImages as Mock).mockResolvedValue({
+      (mockBodyShapeClient.generateBodyShapeImages as Mock).mockResolvedValue({
         success: false,
         error: 'Gemini API rate limit exceeded',
       });
