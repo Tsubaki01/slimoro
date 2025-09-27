@@ -6,6 +6,8 @@ import { createGeminiClient } from '@/lib';
 import { Env } from '@/types';
 import { fileToBase64, ImageConversionError } from '@/utils';
 
+import bodyShape from './body-shape';
+
 const app = new Hono<Env>();
 
 /**
@@ -151,5 +153,7 @@ app.post(
     }
   }
 );
+
+app.route('/body-shape', bodyShape);
 
 export default app;
