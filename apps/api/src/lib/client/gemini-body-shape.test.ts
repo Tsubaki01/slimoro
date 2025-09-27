@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { GoogleGenAI } from '@google/genai';
 
-import { BodyShapeClient } from './body-shape-client';
+import { generateBodyShapePrompt, generateBodyShapeImages } from './body-shape-client';
 import { GeminiClient } from './gemini-client';
 import type { Subject, TargetWeight, BodyShapeOptions } from '@/types';
 
 vi.mock('@google/genai');
 
 describe('BodyShapeClient - Body Shape Generation', () => {
-  let client: BodyShapeClient;
   let mockGenAI: any;
 
   beforeEach(() => {
@@ -19,79 +18,62 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       },
     };
     (GoogleGenAI as any).mockImplementation(() => mockGenAI);
-    client = new BodyShapeClient('test-api-key');
   });
 
   describe('generateBodyShapePrompt', () => {
     it('痩せるターゲット（BMI減少）の場合、適切なプロンプトを生成する', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const target: TargetWeight = { weightKg: 60, label: 'slim' };
-      const options: BodyShapeOptions = { strength: 0.7 };
 
-      const prompt = client.generateBodyShapePrompt(subject, target, options);
+      const prompt = generateBodyShapePrompt(subject, target);
 
-      expect(prompt).toContain('significantly');
-      expect(prompt).toContain('thinner');
-      expect(prompt).toContain('natural');
-      expect(prompt).toContain('realistic');
+      expect(prompt).toContain('170 cm tall and weighs 70 kg');
+      expect(prompt).toContain('10 kg lighter');
+      expect(prompt).toContain('Fat is reduced');
+      expect(prompt).toContain('body becomes slimmer');
+      expect(prompt).toContain('Keep the background, composition, clothing');
+      expect(prompt).toContain('Only change the body shape as specified');
     });
 
     it('太るターゲット（BMI増加）の場合、適切なプロンプトを生成する', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const target: TargetWeight = { weightKg: 85, label: 'heavier' };
-      const options: BodyShapeOptions = { strength: 0.6 };
 
-      const prompt = client.generateBodyShapePrompt(subject, target, options);
+      const prompt = generateBodyShapePrompt(subject, target);
 
-      expect(prompt).toContain('significantly');
-      expect(prompt).toContain('heavier');
-      expect(prompt).toContain('natural');
-      expect(prompt).toContain('realistic');
+      expect(prompt).toContain('170 cm tall and weighs 70 kg');
+      expect(prompt).toContain('15 kg heavier');
+      expect(prompt).toContain('body becomes fuller');
+      expect(prompt).toContain('Keep the background, composition, clothing');
     });
 
-    it('現在と同じ体重の場合、最小限の変更プロンプトを生成する', () => {
+    it('現在と同じ体重の場合、エラーをスローする', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const target: TargetWeight = { weightKg: 70, label: 'current' };
-      const options: BodyShapeOptions = { strength: 0.3 };
 
-      const prompt = client.generateBodyShapePrompt(subject, target, options);
-
-      expect(prompt).toContain('minimal');
-      expect(prompt).toContain('natural');
-      expect(prompt).toContain('realistic');
+      expect(() => generateBodyShapePrompt(subject, target)).toThrow('No body shape change needed when target weight equals current weight');
     });
 
-    it('強度オプションが反映されたプロンプトを生成する', () => {
-      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
-      const target: TargetWeight = { weightKg: 55, label: 'very-slim' };
-      const options: BodyShapeOptions = { strength: 1.0 };
-
-      const prompt = client.generateBodyShapePrompt(subject, target, options);
-
-      expect(prompt).toContain('dramatically');
-      expect(prompt).toContain('natural');
-    });
-
-    it('背景保持オプションが反映されたプロンプトを生成する', () => {
-      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
-      const target: TargetWeight = { weightKg: 60 };
-      const options: BodyShapeOptions = { preserveBackground: true };
-
-      const prompt = client.generateBodyShapePrompt(subject, target, options);
-
-      expect(prompt).toContain('background completely unchanged');
-      expect(prompt).toContain('preserve');
-    });
-
-    it('極端なBMI変化の場合、安全制限が適用される', () => {
+    it('極端なBMI変化の場合でもシンプルなプロンプトを生成する', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const target: TargetWeight = { weightKg: 40 }; // 極端に軽い
 
-      const prompt = client.generateBodyShapePrompt(subject, target);
+      const prompt = generateBodyShapePrompt(subject, target);
 
-      expect(prompt).toContain('dramatically');
-      expect(prompt).toContain('natural');
-      expect(prompt).toContain('in a healthy and realistic way');
+      expect(prompt).toContain('30 kg lighter');
+      expect(prompt).toContain('Fat is reduced');
+      expect(prompt).toContain('body becomes slimmer');
+      expect(prompt).toContain('Keep the background, composition, clothing');
+    });
+
+    it('すべてのプロンプトに保持指示が含まれている', () => {
+      const subject: Subject = { heightCm: 160, currentWeightKg: 55 };
+      const target: TargetWeight = { weightKg: 50 };
+
+      const prompt = generateBodyShapePrompt(subject, target);
+
+      expect(prompt).toContain('Keep the background, composition, clothing, pose, facial features, and all other elements exactly the same');
+      expect(prompt).toContain('Only change the body shape as specified');
     });
   });
 
@@ -117,13 +99,13 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const targets: TargetWeight[] = [{ weightKg: 60, label: 'slim' }];
 
-      const result = await client.generateBodyShapeImages({
+      const result = await generateBodyShapeImages({
         imageBase64: 'input-base64',
         mimeType: 'image/jpeg',
         subject,
         targets,
         options: {},
-      });
+      }, 'test-api-key');
 
       expect(result.success).toBe(true);
       expect(result.images).toHaveLength(1);
@@ -175,13 +157,13 @@ describe('BodyShapeClient - Body Shape Generation', () => {
         { weightKg: 85, label: 'fat' },
       ];
 
-      const result = await client.generateBodyShapeImages({
+      const result = await generateBodyShapeImages({
         imageBase64: 'input-base64',
         mimeType: 'image/jpeg',
         subject,
         targets,
         options: {},
-      });
+      }, 'test-api-key');
 
       expect(result.success).toBe(true);
       expect(result.images).toHaveLength(2);
@@ -216,13 +198,13 @@ describe('BodyShapeClient - Body Shape Generation', () => {
         { weightKg: 85, label: 'fat' },
       ];
 
-      const result = await client.generateBodyShapeImages({
+      const result = await generateBodyShapeImages({
         imageBase64: 'input-base64',
         mimeType: 'image/jpeg',
         subject,
         targets,
         options: {},
-      });
+      }, 'test-api-key');
 
       expect(result.success).toBe(true);
       expect(result.images).toHaveLength(1);
@@ -241,13 +223,13 @@ describe('BodyShapeClient - Body Shape Generation', () => {
         { weightKg: 85, label: 'fat' },
       ];
 
-      const result = await client.generateBodyShapeImages({
+      const result = await generateBodyShapeImages({
         imageBase64: 'input-base64',
         mimeType: 'image/jpeg',
         subject,
         targets,
         options: {},
-      });
+      }, 'test-api-key');
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('All image generations failed');
@@ -274,25 +256,19 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const targets: TargetWeight[] = [{ weightKg: 60, label: 'slim' }];
       const options: BodyShapeOptions = {
-        strength: 0.8,
         returnMimeType: 'image/jpeg',
-        preserveBackground: true,
         seed: 12345,
       };
 
-      await client.generateBodyShapeImages({
+      await generateBodyShapeImages({
         imageBase64: 'input-base64',
         mimeType: 'image/jpeg',
         subject,
         targets,
         options,
-      });
+      }, 'test-api-key');
 
       const callArgs = mockGenAI.models.generateContent.mock.calls[0][0];
-      const prompt = callArgs.contents[0].text;
-
-      expect(prompt).toContain('preserve');
-      expect(prompt).toContain('background');
       expect(callArgs.generationConfig?.seed).toBe(12345);
     });
 
@@ -323,39 +299,54 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const targets: TargetWeight[] = [{ weightKg: 60, label: 'slim' }];
 
-      const result = await client.generateBodyShapeImages({
+      const result = await generateBodyShapeImages({
         imageBase64: 'input-base64',
         mimeType: 'image/jpeg',
         subject,
         targets,
         options: {},
-      });
+      }, 'test-api-key');
 
       expect(result.success).toBe(true);
       expect(result.metadata!.processingTimeMs).toBeGreaterThan(90);
       expect(result.metadata!.model).toBe('gemini-2.5-flash-image-preview');
       expect(result.metadata!.confidence).toBeGreaterThan(0);
     });
-  });
 
-  describe('BMI計算', () => {
-    it('正しいBMIを計算する', () => {
-      const bmi1 = client.calculateBMI(170, 70); // 170cm, 70kg
-      expect(bmi1).toBeCloseTo(24.22, 2);
+    it('体重変化なしの場合、エラーを返す', async () => {
+      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
+      const targets: TargetWeight[] = [{ weightKg: 70, label: 'current' }];
 
-      const bmi2 = client.calculateBMI(160, 50); // 160cm, 50kg
-      expect(bmi2).toBeCloseTo(19.53, 2);
+      const result = await generateBodyShapeImages({
+        imageBase64: 'input-base64',
+        mimeType: 'image/jpeg',
+        subject,
+        targets,
+        options: {},
+      }, 'test-api-key');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Body shape generation is not needed when target weight equals current weight');
     });
 
-    it('BMI変化の強度を正しく計算する', () => {
-      const intensity1 = client.calculateIntensity(24.22, 20.76); // 70kg -> 60kg at 170cm
-      expect(intensity1).toBeCloseTo(0.346, 2);
+    it('体重変化ありと体重変化なしが混在している場合、エラーを返す', async () => {
+      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
+      const targets: TargetWeight[] = [
+        { weightKg: 60, label: 'slim' },
+        { weightKg: 70, label: 'current' },
+      ];
 
-      const intensity2 = client.calculateIntensity(24.22, 29.41); // 70kg -> 85kg at 170cm
-      expect(intensity2).toBeCloseTo(0.519, 2);
+      const result = await generateBodyShapeImages({
+        imageBase64: 'input-base64',
+        mimeType: 'image/jpeg',
+        subject,
+        targets,
+        options: {},
+      }, 'test-api-key');
 
-      const intensity3 = client.calculateIntensity(24.22, 24.22); // same weight
-      expect(intensity3).toBe(0);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Body shape generation is not needed when target weight equals current weight');
     });
   });
+
 });

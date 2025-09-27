@@ -1,2 +1,2 @@
 export { createGeminiClient, GeminiClient } from './gemini-client';
-export { createBodyShapeClient, BodyShapeClient } from './body-shape-client';
+export { createBodyShapeClient, generateBodyShapeImages, generateBodyShapePrompt } from './body-shape-client';

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { testClient } from 'hono/testing';
 
 import { createBodyShapeClient } from '@/lib';
-import type { BodyShapeClient } from '@/lib/client/body-shape-client';
 import app from './index';
 
 vi.mock('@/lib', () => ({
@@ -18,8 +17,9 @@ vi.mock('@/utils', async () => {
 });
 
 describe('POST /api/generate-image/body-shape', () => {
-  const mockBodyShapeClient: Partial<BodyShapeClient> = {
+  const mockBodyShapeClient = {
     generateBodyShapeImages: vi.fn(),
+    generateBodyShapePrompt: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -206,29 +206,6 @@ describe('POST /api/generate-image/body-shape', () => {
       expect(json.success).toBe(false);
       expect(json.message).toContain('Targets array must have 1 to 2 elements');
     });
-
-    it('optionsのstrengthが範囲外（1.1）の場合、400エラーを返す', async () => {
-      const client = testClient(app, {
-        GEMINI_API_KEY: 'test-key',
-      });
-
-      const formData = new FormData();
-      const imageBlob = new Blob(['test image'], { type: 'image/jpeg' });
-      const file = new File([imageBlob], 'test.jpg', { type: 'image/jpeg' });
-      formData.append('image', file);
-      formData.append('subject', JSON.stringify({ heightCm: 170, currentWeightKg: 70 }));
-      formData.append('targets', JSON.stringify([{ weightKg: 60, label: 'slim' }]));
-      formData.append('options', JSON.stringify({ strength: 1.1 }));
-
-      const res = await client.index.$post({
-        form: Object.fromEntries(formData.entries()),
-      });
-
-      expect(res.status).toBe(400);
-      const json = await res.json();
-      expect(json.success).toBe(false);
-      expect(json.message).toContain('Options must be valid JSON');
-    });
   });
 
   describe('成功テスト', () => {
@@ -325,6 +302,32 @@ describe('POST /api/generate-image/body-shape', () => {
       expect(json.success).toBe(true);
       expect(json.images).toHaveLength(1);
       expect(json.images[0].label).toBe('slim');
+    });
+
+    it('体重変化なしの場合、元の画像をそのまま返す', async () => {
+      const client = testClient(app, {
+        GEMINI_API_KEY: 'test-key',
+      });
+
+      const formData = new FormData();
+      const imageBlob = new Blob(['test image'], { type: 'image/jpeg' });
+      const file = new File([imageBlob], 'test.jpg', { type: 'image/jpeg' });
+      formData.append('image', file);
+      formData.append('subject', JSON.stringify({ heightCm: 170, currentWeightKg: 70 }));
+      formData.append('targets', JSON.stringify([{ weightKg: 70, label: 'current' }]));
+
+      const res = await client.index.$post({
+        form: Object.fromEntries(formData.entries()),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.images).toHaveLength(1);
+      expect(json.images[0].label).toBe('current');
+      expect(json.images[0].base64).toBe('mocked-base64-data');
+      expect(json.metadata.model).toBe('original-image');
+      expect(json.metadata.note).toContain('No body shape change needed');
     });
   });
 

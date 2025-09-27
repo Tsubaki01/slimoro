@@ -61,12 +61,6 @@ const targetWeightSchema = z.object({
  * 追加オプションのスキーマ。
  */
 const optionsSchema = z.object({
-  /** 反映強度（0.0〜1.0、既定 0.7 を想定） */
-  strength: z
-    .number()
-    .min(0.0, 'Strength must be between 0.0 and 1.0')
-    .max(1.0, 'Strength must be between 0.0 and 1.0')
-    .optional(),
   /** 出力画像の MIME（既定 `image/png`） */
   returnMimeType: z
     .enum(['image/png', 'image/jpeg'])
@@ -229,6 +223,31 @@ app.post('/', validator, async (c) => {
         },
         500
       );
+    }
+
+    // 体重変化なしのターゲットをチェック
+    const noChangeTargets = targets.filter(target => target.weightKg === subject.currentWeightKg);
+    if (noChangeTargets.length > 0) {
+      // 体重変化なしの場合、元の画像をそのまま返す
+      const outputMimeType = options?.returnMimeType || 'image/png';
+      const originalImages = noChangeTargets.map(target => ({
+        label: target.label,
+        base64: base64,
+        mimeType: outputMimeType,
+        width: 1024,
+        height: 1024,
+      }));
+
+      return c.json({
+        success: true,
+        images: originalImages,
+        metadata: {
+          processingTimeMs: 0,
+          confidence: 1.0,
+          model: 'original-image',
+          note: 'No body shape change needed - returning original image',
+        },
+      });
     }
 
     // 体型変化専用クライアントを用いて画像を生成

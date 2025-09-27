@@ -381,20 +381,6 @@ app.get('/', async (c) => {
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="strength">
-                Transformation Strength: <span class="range-value" id="strengthValue">0.7</span>
-              </label>
-              <input
-                type="range"
-                id="strength"
-                name="strength"
-                min="0.1"
-                max="1.0"
-                step="0.1"
-                value="0.7"
-              />
-            </div>
 
             <div class="checkbox-group">
               <input type="checkbox" id="preserveBackground" name="preserveBackground" />
@@ -474,15 +460,7 @@ app.get('/', async (c) => {
       const imagesGrid = document.getElementById('imagesGrid');
       const addTargetBtn = document.getElementById('addTarget');
       const targetContainer = document.getElementById('targetContainer');
-      const strengthSlider = document.getElementById('strength');
-      const strengthValue = document.getElementById('strengthValue');
-
       let hasSecondTarget = false;
-
-      // Strength slider update
-      strengthSlider.addEventListener('input', (e) => {
-        strengthValue.textContent = e.target.value;
-      });
 
       // Add second target
       addTargetBtn.addEventListener('click', () => {
@@ -576,7 +554,6 @@ app.get('/', async (c) => {
 
           // Add options
           const options = {
-            strength: parseFloat(form.strength.value),
             preserveBackground: form.preserveBackground.checked,
             returnMimeType: 'image/png'
           };

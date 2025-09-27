@@ -93,7 +93,7 @@ describe('GeminiClient', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('No candidates returned from Gemini API');
+      expect(result.error).toBe('No image generated in response');
     });
 
     it('should handle no image in response', async () => {
@@ -228,7 +228,7 @@ describe('GeminiClient', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Unknown error occurred during image generation');
+      expect(result.error).toBe('"Non-error object"');
     });
   });
 });

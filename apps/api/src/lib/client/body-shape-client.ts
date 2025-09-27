@@ -3,76 +3,107 @@ import type { Subject, TargetWeight, BodyShapeOptions, GeneratedImage } from '@/
 import { GeminiClient } from './gemini-client';
 
 /**
- * 体型変化の英語プロンプト定数。
- * 役割: 体型変化の最終プロンプト文面のテンプレート。
- * 日本語訳:
- * - この人物の体型が {strengthModifier} {transformationDescriptor}{safetyModifier} に見えるように変換してください。
- * - 変換は自然で現実的で、体格に釣り合うものにしてください。
- * - 顔立ち、服装、ポーズはそのまま維持してください。
- * - {backgroundInstruction}
- * - 結果は照明と影が一貫した自然な写真として見えるようにしてください。
+ * プロンプト部品の定数定義
  */
-export const BODY_SHAPE_PROMPT_TEMPLATE = `Transform this person's body to appear {strengthModifier} {transformationDescriptor}{safetyModifier}.
-The transformation should look natural, realistic, and proportional to their body frame.
-Maintain facial features, clothing, and pose exactly as shown.
-{backgroundInstruction}
-Ensure the result appears as a natural photograph with consistent lighting and shadows.`;
+
+// 基本情報のテンプレート
+export const SUBJECT_INFO_TEMPLATE = 'The subject in the photo is {height} cm tall and weighs {currentWeight} kg.';
+
+// 体型変化の指示テンプレート
+export const BODY_CHANGE_TEMPLATE = 'Change the subject\'s body shape to one {weightDiff} kg {direction}.';
+
+// 体型変化の詳細説明
+export const WEIGHT_LOSS_DESCRIPTION = 'Fat is reduced. The body becomes slimmer.';
+export const WEIGHT_GAIN_DESCRIPTION = 'The body becomes fuller.';
+
+// 保持指示
+export const PRESERVATION_INSTRUCTION = 'No changes to any element other than his/her physique will be permitted.';
 
 /**
- * 背景保持の指示プロンプト。
- * 役割: 背景を完全に維持するように指示する固定文。
- * 日本語訳: 背景を完全に変更せず、すべての環境ディテールを保持してください。
+ * テンプレート文字列の {key} を対応する値で置換するヘルパー関数
  */
-export const BACKGROUND_KEEP_INSTRUCTION = 'Keep the background completely unchanged and preserve all environmental details.';
-
-/**
- * 背景を大きく変えず構図維持の指示プロンプト。
- * 役割: シーンの構図を維持しつつ体型変化に集中させる固定文。
- * 日本語訳: 体型の変化に集中しつつ、全体のシーン構図を維持してください。
- */
-export const BACKGROUND_MAINTAIN_INSTRUCTION = 'Maintain the overall scene composition while focusing on the body transformation.';
-
-/**
- * テンプレート中の {key} を対応する値で置換する軽量ユーティリティ。
- */
-function fillTemplate(template: string, variables: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
-    return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : '';
+function replaceTemplate(template: string, replacements: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    const value = replacements[key];
+    return value !== undefined ? String(value) : match;
   });
 }
 
 /**
- * 強度修飾子 (strength modifier)。
- * 役割: 変化の強さを表す副詞を統一管理。
- * 日本語訳: high=劇的に, medium=大きく, low=適度に。
+ * プロンプト組み合わせ関数群
  */
-export const STRENGTH_MODIFIER_HIGH = 'dramatically';
-export const STRENGTH_MODIFIER_MEDIUM = 'significantly';
-export const STRENGTH_MODIFIER_LOW = 'moderately';
 
 /**
- * 変化の説明 (transformation descriptor)。
- * 役割: 体型変化の方向・度合いを定型文で表現。
- * 日本語訳の要旨:
- * - MAINTAIN: 現状維持で最小限の調整
- * - SLIMMER_(HIGH/MEDIUM/LOW): 劇的/目に見える/わずかな減量
- * - HEAVIER_(HIGH/MEDIUM/LOW): 大きく/目に見える/適度な増量
+ * 被写体情報を生成する
  */
-export const TRANSFORMATION_DESCRIPTOR_MAINTAIN = 'current body shape with minimal adjustments';
-export const TRANSFORMATION_DESCRIPTOR_SLIMMER_HIGH = 'dramatically thinner and more toned';
-export const TRANSFORMATION_DESCRIPTOR_SLIMMER_MEDIUM = 'noticeably slimmer with visible weight loss';
-export const TRANSFORMATION_DESCRIPTOR_SLIMMER_LOW = 'slightly thinner with subtle weight loss';
-export const TRANSFORMATION_DESCRIPTOR_HEAVIER_HIGH = 'significantly fuller and heavier';
-export const TRANSFORMATION_DESCRIPTOR_HEAVIER_MEDIUM = 'noticeably heavier with visible weight gain';
-export const TRANSFORMATION_DESCRIPTOR_HEAVIER_LOW = 'slightly fuller with moderate weight gain';
+function createSubjectInfo(heightCm: number, currentWeightKg: number): string {
+  return replaceTemplate(SUBJECT_INFO_TEMPLATE, {
+    height: heightCm,
+    currentWeight: currentWeightKg
+  });
+}
 
 /**
- * 安全修飾子 (safety modifier)。
- * 役割: 極端な変化に健康的・自然さの制約を付与する表現。
- * 日本語訳: 健康的で現実的/自然で健康的な形で。
+ * 体型変化指示を生成する
  */
-export const SAFETY_MODIFIER_HEALTHY_REALISTIC = ' in a healthy and realistic way';
-export const SAFETY_MODIFIER_NATURAL_HEALTHY = ' in a natural and healthy way';
+function createBodyChangeInstruction(weightDiff: number, direction: string): string {
+  return replaceTemplate(BODY_CHANGE_TEMPLATE, {
+    weightDiff,
+    direction
+  });
+}
+
+/**
+ * 減量プロンプトを生成する
+ */
+function createWeightLossPrompt(subject: Subject, target: TargetWeight): string {
+  const weightDiff = subject.currentWeightKg - target.weightKg;
+  const subjectInfo = createSubjectInfo(subject.heightCm, subject.currentWeightKg);
+  const bodyChange = createBodyChangeInstruction(weightDiff, 'lighter');
+
+  return [
+    subjectInfo,
+    bodyChange,
+    WEIGHT_LOSS_DESCRIPTION,
+    PRESERVATION_INSTRUCTION
+  ].join(' ');
+}
+
+/**
+ * 増量プロンプトを生成する
+ */
+function createWeightGainPrompt(subject: Subject, target: TargetWeight): string {
+  const weightDiff = target.weightKg - subject.currentWeightKg;
+  const subjectInfo = createSubjectInfo(subject.heightCm, subject.currentWeightKg);
+  const bodyChange = createBodyChangeInstruction(weightDiff, 'heavier');
+
+  return [
+    subjectInfo,
+    bodyChange,
+    WEIGHT_GAIN_DESCRIPTION,
+    PRESERVATION_INSTRUCTION
+  ].join(' ');
+}
+
+/**
+ * 対象者情報と目標体重から、シンプルな体型変化のプロンプトを生成する。
+ */
+export function generateBodyShapePrompt(
+  subject: Subject,
+  target: TargetWeight
+): string {
+  const weightDiff = target.weightKg - subject.currentWeightKg;
+
+  if (weightDiff < 0) {
+    return createWeightLossPrompt(subject, target);
+  } else if (weightDiff > 0) {
+    return createWeightGainPrompt(subject, target);
+  } else {
+    // 体重変化なしの場合はエラーとして扱われるべきだが、
+    // プロンプト生成の段階では一応対応しておく
+    throw new Error('No body shape change needed when target weight equals current weight');
+  }
+}
 
 /**
  * 体型変化の画像生成に必要な入力パラメータ。
@@ -110,151 +141,86 @@ export type BodyShapeGenerationResult = {
 };
 
 /**
- * 体型変化のプロンプト生成と画像生成を行う高水準クライアント。
- * - 複数ターゲットを並列に生成
- * - seed を指定可能 (Gemini 側の generationConfig を委譲)
+ * 指定されたターゲット一覧に対し、体型変化画像を生成する。
+ * 内部で GeminiClient を利用し、必要に応じて seed を付与する。
  */
-export class BodyShapeClient {
-  private geminiClient: GeminiClient;
+export async function generateBodyShapeImages(
+  options: BodyShapeGenerationOptions,
+  apiKey: string
+): Promise<BodyShapeGenerationResult> {
+  const { imageBase64, mimeType, subject, targets, options: bodyOptions } = options;
 
-  constructor(apiKey: string) {
-    this.geminiClient = new GeminiClient(apiKey);
-  }
-
-  /**
-   * 対象者情報と目標体重から、自然で安全な体型変化のプロンプトを生成する。
-   */
-  generateBodyShapePrompt(
-    subject: Subject,
-    target: TargetWeight,
-    options?: BodyShapeOptions
-  ): string {
-    const currentBMI = this.calculateBMI(subject.heightCm, subject.currentWeightKg);
-    const targetBMI = this.calculateBMI(subject.heightCm, target.weightKg);
-    const bmiDiff = targetBMI - currentBMI;
-    const intensity = this.calculateIntensity(currentBMI, targetBMI);
-    const strength = options?.strength ?? 0.7;
-
-    let transformationDescriptor: string;
-    let safetyModifier = '';
-
-    if (Math.abs(bmiDiff) < 0.5) {
-      transformationDescriptor = TRANSFORMATION_DESCRIPTOR_MAINTAIN;
-    } else if (bmiDiff < 0) {
-      if (intensity > 0.8) {
-        transformationDescriptor = TRANSFORMATION_DESCRIPTOR_SLIMMER_HIGH;
-        safetyModifier = SAFETY_MODIFIER_HEALTHY_REALISTIC;
-      } else if (intensity > 0.5) {
-        transformationDescriptor = TRANSFORMATION_DESCRIPTOR_SLIMMER_MEDIUM;
-      } else {
-        transformationDescriptor = TRANSFORMATION_DESCRIPTOR_SLIMMER_LOW;
-      }
-    } else {
-      if (intensity > 0.8) {
-        transformationDescriptor = TRANSFORMATION_DESCRIPTOR_HEAVIER_HIGH;
-        safetyModifier = SAFETY_MODIFIER_NATURAL_HEALTHY;
-      } else if (intensity > 0.5) {
-        transformationDescriptor = TRANSFORMATION_DESCRIPTOR_HEAVIER_MEDIUM;
-      } else {
-        transformationDescriptor = TRANSFORMATION_DESCRIPTOR_HEAVIER_LOW;
-      }
-    }
-
-    const strengthModifier = strength > 0.8
-      ? STRENGTH_MODIFIER_HIGH
-      : strength > 0.5
-        ? STRENGTH_MODIFIER_MEDIUM
-        : STRENGTH_MODIFIER_LOW;
-    const backgroundInstruction = options?.preserveBackground
-      ? BACKGROUND_KEEP_INSTRUCTION
-      : BACKGROUND_MAINTAIN_INSTRUCTION;
-
-    return fillTemplate(BODY_SHAPE_PROMPT_TEMPLATE, {
-      strengthModifier,
-      transformationDescriptor,
-      safetyModifier,
-      backgroundInstruction,
-    });
-  }
-
-  /** BMI を算出する (kg/m^2)。 */
-  calculateBMI(heightCm: number, weightKg: number): number {
-    const heightM = heightCm / 100;
-    return weightKg / (heightM * heightM);
-  }
-
-  /** 体型変化の強度を 0..1 に正規化して返す。 */
-  calculateIntensity(currentBMI: number, targetBMI: number): number {
-    const diff = Math.abs(targetBMI - currentBMI);
-    return Math.min(diff / 10, 1.0);
-  }
-
-  /**
-   * 指定されたターゲット一覧に対し、体型変化画像を生成する。
-   * 内部で GeminiClient を利用し、必要に応じて seed を付与する。
-   */
-  async generateBodyShapeImages(
-    options: BodyShapeGenerationOptions
-  ): Promise<BodyShapeGenerationResult> {
-    const { imageBase64, mimeType, subject, targets, options: bodyOptions } = options;
-    const startTime = Date.now();
-    let failedCount = 0;
-
-    const generatePromises: Array<Promise<GeneratedImage | null>> = targets.map(async (target): Promise<GeneratedImage | null> => {
-      try {
-        const prompt = this.generateBodyShapePrompt(subject, target, bodyOptions);
-        const { success, imageBase64: generatedImageBase64, error } = await this.geminiClient.generateImage({
-          prompt,
-          imageBase64,
-          mimeType,
-          generationConfig: bodyOptions?.seed !== undefined ? { seed: bodyOptions.seed } : undefined,
-        });
-
-        if (!success || !generatedImageBase64) {
-          throw new Error(error || 'No image generated in response');
-        }
-
-        const outputMimeType = bodyOptions?.returnMimeType || 'image/png';
-        const generated: GeneratedImage = {
-          label: target.label,
-          base64: generatedImageBase64,
-          mimeType: outputMimeType,
-          width: 1024, // Default size, could be extracted from actual image
-          height: 1024,
-        };
-        return generated;
-      } catch {
-        failedCount++;
-        return null;
-      }
-    });
-
-    const generatedImages: Array<GeneratedImage | null> = await Promise.all(generatePromises);
-    const successfulImages: GeneratedImage[] = generatedImages.filter((img): img is GeneratedImage => img !== null);
-
-    if (successfulImages.length === 0) {
-      return {
-        success: false,
-        error: 'All image generations failed',
-      };
-    }
-
-    const processingTime = Date.now() - startTime;
-    const confidence = Math.max(0.8, 1.0 - (failedCount / targets.length) * 0.2);
-
+  // 体重変化なしのターゲットをチェック
+  const noChangeTargets = targets.filter(target => target.weightKg === subject.currentWeightKg);
+  if (noChangeTargets.length > 0) {
     return {
-      success: true,
-      images: successfulImages,
-      metadata: {
-        processingTimeMs: processingTime,
-        confidence,
-        model: 'gemini-2.5-flash-image-preview',
-        ...(failedCount > 0 && { partialFailures: failedCount }),
-      },
+      success: false,
+      error: 'Body shape generation is not needed when target weight equals current weight',
     };
   }
+
+  const geminiClient = new GeminiClient(apiKey);
+  const startTime = Date.now();
+  let failedCount = 0;
+
+  const generatePromises: Array<Promise<GeneratedImage | null>> = targets.map(async (target): Promise<GeneratedImage | null> => {
+    try {
+      const prompt = generateBodyShapePrompt(subject, target);
+      const { success, imageBase64: generatedImageBase64, error } = await geminiClient.generateImage({
+        prompt,
+        imageBase64,
+        mimeType,
+        generationConfig: bodyOptions?.seed !== undefined ? { seed: bodyOptions.seed } : undefined,
+      });
+
+      if (!success || !generatedImageBase64) {
+        throw new Error(error || 'No image generated in response');
+      }
+
+      const outputMimeType = bodyOptions?.returnMimeType || 'image/png';
+      const generated: GeneratedImage = {
+        label: target.label,
+        base64: generatedImageBase64,
+        mimeType: outputMimeType,
+        width: 1024, // Default size, could be extracted from actual image
+        height: 1024,
+      };
+      return generated;
+    } catch {
+      failedCount++;
+      return null;
+    }
+  });
+
+  const generatedImages: Array<GeneratedImage | null> = await Promise.all(generatePromises);
+  const successfulImages: GeneratedImage[] = generatedImages.filter((img): img is GeneratedImage => img !== null);
+
+  if (successfulImages.length === 0) {
+    return {
+      success: false,
+      error: 'All image generations failed',
+    };
+  }
+
+  const processingTime = Date.now() - startTime;
+  const confidence = Math.max(0.8, 1.0 - (failedCount / targets.length) * 0.2);
+
+  return {
+    success: true,
+    images: successfulImages,
+    metadata: {
+      processingTimeMs: processingTime,
+      confidence,
+      model: 'gemini-2.5-flash-image-preview',
+      ...(failedCount > 0 && { partialFailures: failedCount }),
+    },
+  };
 }
 
-export function createBodyShapeClient(env: Env['Bindings']): BodyShapeClient {
-  return new BodyShapeClient(env.GEMINI_API_KEY);
+export function createBodyShapeClient(env: Env['Bindings']) {
+  return {
+    generateBodyShapeImages: (options: BodyShapeGenerationOptions) =>
+      generateBodyShapeImages(options, env.GEMINI_API_KEY),
+    generateBodyShapePrompt,
+  };
 }
