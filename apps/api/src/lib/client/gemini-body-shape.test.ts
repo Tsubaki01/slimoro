@@ -24,6 +24,56 @@ describe('BodyShapeClient - Body Shape Generation', () => {
     MockedGoogleGenAI.mockImplementation(() => mockGenAI);
   });
 
+  describe('BMI計算と分類判定', () => {
+    it('BMI計算が正確に行われる', () => {
+      // calculateBMI関数は非公開なので、generateBodyShapePromptを通じてテストする
+      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
+      const target: TargetWeight = { weightKg: 60 };
+
+      const prompt = generateBodyShapePrompt(subject, target);
+
+      expect(prompt).toContain('BMI: 24.2, Normal weight');
+      expect(prompt).toContain('Target BMI: 20.8, Normal weight');
+    });
+
+    it('BMI分類が正確に判定される', () => {
+      const testCases = [
+        { heightCm: 170, weightKg: 45, expectedCategory: 'Mild thinness' }, // BMI: 15.6
+        { heightCm: 170, weightKg: 55, expectedCategory: 'Normal weight' }, // BMI: 19.0
+        { heightCm: 170, weightKg: 80, expectedCategory: 'Overweight' }, // BMI: 27.7
+        { heightCm: 170, weightKg: 90, expectedCategory: 'Obesity, Class 1' }, // BMI: 31.1
+        { heightCm: 170, weightKg: 120, expectedCategory: 'Obesity, Class 3' }, // BMI: 41.5
+      ];
+
+      testCases.forEach(({ heightCm, weightKg, expectedCategory }) => {
+        const subject: Subject = { heightCm, currentWeightKg: weightKg };
+        const target: TargetWeight = { weightKg: weightKg + 1 }; // 1kg増加で変化を作る
+
+        const prompt = generateBodyShapePrompt(subject, target);
+
+        expect(prompt).toContain(expectedCategory);
+      });
+    });
+
+    it('BMI境界値での分類が正確に判定される', () => {
+      const boundaryTestCases = [
+        { heightCm: 170, weightKg: 46.2, expectedCategory: 'Mild thinness' }, // BMI: 16.0 (境界)
+        { heightCm: 170, weightKg: 53.4, expectedCategory: 'Normal weight' }, // BMI: 18.5 (境界)
+        { heightCm: 170, weightKg: 72.3, expectedCategory: 'Overweight' }, // BMI: 25.0 (境界)
+        { heightCm: 170, weightKg: 86.7, expectedCategory: 'Obesity, Class 1' }, // BMI: 30.0 (境界)
+      ];
+
+      boundaryTestCases.forEach(({ heightCm, weightKg, expectedCategory }) => {
+        const subject: Subject = { heightCm, currentWeightKg: weightKg };
+        const target: TargetWeight = { weightKg: weightKg + 1 };
+
+        const prompt = generateBodyShapePrompt(subject, target);
+
+        expect(prompt).toContain(expectedCategory);
+      });
+    });
+  });
+
   describe('generateBodyShapePrompt', () => {
     it('痩せるターゲット（BMI減少）の場合、適切なプロンプトを生成する', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
@@ -31,10 +81,18 @@ describe('BodyShapeClient - Body Shape Generation', () => {
 
       const prompt = generateBodyShapePrompt(subject, target);
 
-      expect(prompt).toContain('170 cm tall and weighs 70 kg');
+      expect(prompt).toContain('<subject>');
+      expect(prompt).toContain('Height: 170 cm, Weight: 70 kg');
+      expect(prompt).toContain('BMI: 24.2, Normal weight');
+      expect(prompt).toContain('<transformation>');
+      expect(prompt).toContain('Target weight: 60 kg');
+      expect(prompt).toContain('Target BMI: 20.8, Normal weight');
       expect(prompt).toContain('10 kg lighter');
       expect(prompt).toContain('Fat is reduced');
       expect(prompt).toContain('body becomes slimmer');
+      expect(prompt).toContain('<bmi_reference>');
+      expect(prompt).toContain('BMI Categories:');
+      expect(prompt).toContain('<constraints>');
       expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
 
@@ -44,9 +102,16 @@ describe('BodyShapeClient - Body Shape Generation', () => {
 
       const prompt = generateBodyShapePrompt(subject, target);
 
-      expect(prompt).toContain('170 cm tall and weighs 70 kg');
+      expect(prompt).toContain('<subject>');
+      expect(prompt).toContain('Height: 170 cm, Weight: 70 kg');
+      expect(prompt).toContain('BMI: 24.2, Normal weight');
+      expect(prompt).toContain('<transformation>');
+      expect(prompt).toContain('Target weight: 85 kg');
+      expect(prompt).toContain('Target BMI: 29.4, Overweight');
       expect(prompt).toContain('15 kg heavier');
       expect(prompt).toContain('body becomes fuller');
+      expect(prompt).toContain('<bmi_reference>');
+      expect(prompt).toContain('<constraints>');
       expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
 
@@ -57,24 +122,34 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       expect(() => generateBodyShapePrompt(subject, target)).toThrow('No body shape change needed when target weight equals current weight');
     });
 
-    it('極端なBMI変化の場合でもシンプルなプロンプトを生成する', () => {
+    it('極端なBMI変化の場合でも構造化プロンプトを生成する', () => {
       const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
       const target: TargetWeight = { weightKg: 40 }; // 極端に軽い
 
       const prompt = generateBodyShapePrompt(subject, target);
 
+      expect(prompt).toContain('<subject>');
+      expect(prompt).toContain('BMI: 24.2, Normal weight');
+      expect(prompt).toContain('<transformation>');
+      expect(prompt).toContain('Target BMI: 13.8, Severe thinness');
       expect(prompt).toContain('30 kg lighter');
       expect(prompt).toContain('Fat is reduced');
       expect(prompt).toContain('body becomes slimmer');
+      expect(prompt).toContain('<bmi_reference>');
+      expect(prompt).toContain('<constraints>');
       expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
 
-    it('すべてのプロンプトに保持指示が含まれている', () => {
+    it('すべてのプロンプトに構造化されたXMLタグと保持指示が含まれている', () => {
       const subject: Subject = { heightCm: 160, currentWeightKg: 55 };
       const target: TargetWeight = { weightKg: 50 };
 
       const prompt = generateBodyShapePrompt(subject, target);
 
+      expect(prompt).toContain('<subject>');
+      expect(prompt).toContain('<transformation>');
+      expect(prompt).toContain('<bmi_reference>');
+      expect(prompt).toContain('<constraints>');
       expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
   });

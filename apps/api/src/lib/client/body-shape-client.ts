@@ -7,18 +7,30 @@ import { GeminiClient } from './gemini-client';
  * プロンプト部品の定数定義
  */
 
-// 基本情報のテンプレート
-export const SUBJECT_INFO_TEMPLATE = 'The subject in the photo is {height} cm tall and weighs {currentWeight} kg.';
-
-// 体型変化の指示テンプレート
-export const BODY_CHANGE_TEMPLATE = 'Change the subject\'s body shape to one {weightDiff} kg {direction}.';
-
 // 体型変化の詳細説明
 export const WEIGHT_LOSS_DESCRIPTION = 'Fat is reduced. The body becomes slimmer.';
 export const WEIGHT_GAIN_DESCRIPTION = 'The body becomes fuller.';
 
 // 保持指示
 export const PRESERVATION_INSTRUCTION = 'No changes to any element other than his/her physique will be permitted.';
+
+// 構造化XMLプロンプトテンプレート
+export const STRUCTURED_PROMPT_TEMPLATE = `<subject>
+Height: {height} cm, Weight: {currentWeight} kg (BMI: {currentBMI}, {currentCategory})
+</subject>
+
+<transformation>
+Target weight: {targetWeight} kg (Target BMI: {targetBMI}, {targetCategory})
+Change: {weightDiff} kg {direction}. {description}
+</transformation>
+
+<bmi_reference>
+BMI Categories: Severe thinness (<16.0), Moderate thinness (16.0-16.9), Mild thinness (17.0-18.49), Normal weight (18.5-24.9), Overweight (25.0-29.9), Obesity Class 1 (30.0-34.9), Obesity Class 2 (35.0-39.9), Obesity Class 3 (≥40.0)
+</bmi_reference>
+
+<constraints>
+{preservationInstruction}
+</constraints>`;
 
 /**
  * テンプレート文字列の {key} を対応する値で置換するヘルパー関数
@@ -31,63 +43,68 @@ function replaceTemplate(template: string, replacements: Record<string, string |
 }
 
 /**
+ * BMI計算関数
+ * @param heightCm 身長（cm）
+ * @param weightKg 体重（kg）
+ * @returns BMI値（小数点以下1桁まで）
+ */
+function calculateBMI(heightCm: number, weightKg: number): number {
+  const heightM = heightCm / 100;
+  const bmi = weightKg / (heightM * heightM);
+  return Math.round(bmi * 10) / 10;
+}
+
+/**
+ * BMI分類判定関数
+ * @param bmi BMI値
+ * @returns BMI分類の英語表現
+ */
+function getBMICategory(bmi: number): string {
+  if (bmi < 16.0) return 'Severe thinness';
+  if (bmi < 17.0) return 'Moderate thinness';
+  if (bmi < 18.5) return 'Mild thinness';
+  if (bmi < 25.0) return 'Normal weight';
+  if (bmi < 30.0) return 'Overweight';
+  if (bmi < 35.0) return 'Obesity, Class 1';
+  if (bmi < 40.0) return 'Obesity, Class 2';
+  return 'Obesity, Class 3';
+}
+
+/**
  * プロンプト組み合わせ関数群
  */
 
 /**
- * 被写体情報を生成する
+ * 構造化プロンプトを生成する（減量・増量共通）
  */
-function createSubjectInfo(heightCm: number, currentWeightKg: number): string {
-  return replaceTemplate(SUBJECT_INFO_TEMPLATE, {
-    height: heightCm,
-    currentWeight: currentWeightKg
-  });
-}
+function createStructuredPrompt(subject: Subject, target: TargetWeight): string {
+  const currentBMI = calculateBMI(subject.heightCm, subject.currentWeightKg);
+  const targetBMI = calculateBMI(subject.heightCm, target.weightKg);
+  const currentCategory = getBMICategory(currentBMI);
+  const targetCategory = getBMICategory(targetBMI);
 
-/**
- * 体型変化指示を生成する
- */
-function createBodyChangeInstruction(weightDiff: number, direction: string): string {
-  return replaceTemplate(BODY_CHANGE_TEMPLATE, {
+  const weightDiff = Math.abs(target.weightKg - subject.currentWeightKg);
+  const isWeightLoss = target.weightKg < subject.currentWeightKg;
+  const direction = isWeightLoss ? 'lighter' : 'heavier';
+  const description = isWeightLoss ? WEIGHT_LOSS_DESCRIPTION : WEIGHT_GAIN_DESCRIPTION;
+
+  return replaceTemplate(STRUCTURED_PROMPT_TEMPLATE, {
+    height: subject.heightCm,
+    currentWeight: subject.currentWeightKg,
+    currentBMI,
+    currentCategory,
+    targetWeight: target.weightKg,
+    targetBMI,
+    targetCategory,
     weightDiff,
-    direction
+    direction,
+    description,
+    preservationInstruction: PRESERVATION_INSTRUCTION
   });
 }
 
 /**
- * 減量プロンプトを生成する
- */
-function createWeightLossPrompt(subject: Subject, target: TargetWeight): string {
-  const weightDiff = subject.currentWeightKg - target.weightKg;
-  const subjectInfo = createSubjectInfo(subject.heightCm, subject.currentWeightKg);
-  const bodyChange = createBodyChangeInstruction(weightDiff, 'lighter');
-
-  return [
-    subjectInfo,
-    bodyChange,
-    WEIGHT_LOSS_DESCRIPTION,
-    PRESERVATION_INSTRUCTION
-  ].join(' ');
-}
-
-/**
- * 増量プロンプトを生成する
- */
-function createWeightGainPrompt(subject: Subject, target: TargetWeight): string {
-  const weightDiff = target.weightKg - subject.currentWeightKg;
-  const subjectInfo = createSubjectInfo(subject.heightCm, subject.currentWeightKg);
-  const bodyChange = createBodyChangeInstruction(weightDiff, 'heavier');
-
-  return [
-    subjectInfo,
-    bodyChange,
-    WEIGHT_GAIN_DESCRIPTION,
-    PRESERVATION_INSTRUCTION
-  ].join(' ');
-}
-
-/**
- * 対象者情報と目標体重から、シンプルな体型変化のプロンプトを生成する。
+ * 対象者情報と目標体重から、構造化された体型変化のプロンプトを生成する。
  */
 export function generateBodyShapePrompt(
   subject: Subject,
@@ -95,15 +112,13 @@ export function generateBodyShapePrompt(
 ): string {
   const weightDiff = target.weightKg - subject.currentWeightKg;
 
-  if (weightDiff < 0) {
-    return createWeightLossPrompt(subject, target);
-  } else if (weightDiff > 0) {
-    return createWeightGainPrompt(subject, target);
-  } else {
+  if (weightDiff === 0) {
     // 体重変化なしの場合はエラーとして扱われるべきだが、
     // プロンプト生成の段階では一応対応しておく
     throw new Error('No body shape change needed when target weight equals current weight');
   }
+
+  return createStructuredPrompt(subject, target);
 }
 
 /**
