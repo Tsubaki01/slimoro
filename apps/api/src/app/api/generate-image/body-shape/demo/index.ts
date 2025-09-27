@@ -381,11 +381,6 @@ app.get('/', async (c) => {
               </div>
             </div>
 
-
-            <div class="checkbox-group">
-              <input type="checkbox" id="preserveBackground" name="preserveBackground" />
-              <label for="preserveBackground" style="margin-bottom: 0;">Preserve background exactly</label>
-            </div>
           </div>
 
           <!-- 右側: 目標設定 -->
@@ -554,7 +549,6 @@ app.get('/', async (c) => {
 
           // Add options
           const options = {
-            preserveBackground: form.preserveBackground.checked,
             returnMimeType: 'image/png'
           };
           formData.append('options', JSON.stringify(options));

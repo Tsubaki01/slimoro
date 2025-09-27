@@ -65,8 +65,6 @@ const optionsSchema = z.object({
   returnMimeType: z
     .enum(['image/png', 'image/jpeg'])
     .optional(),
-  /** 背景保持の有無 */
-  preserveBackground: z.boolean().optional(),
   /** 生成のシード値 */
   seed: z.number().optional(),
 });

@@ -2,22 +2,25 @@ import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { GoogleGenAI } from '@google/genai';
 
 import { generateBodyShapePrompt, generateBodyShapeImages } from './body-shape-client';
-import { GeminiClient } from './gemini-client';
 import type { Subject, TargetWeight, BodyShapeOptions } from '@/types';
 
 vi.mock('@google/genai');
 
+// 最小限のモック型を定義して any を排除
+type MockGoogleGenAI = { models: { generateContent: Mock } };
+
 describe('BodyShapeClient - Body Shape Generation', () => {
-  let mockGenAI: any;
+  let mockGenAI: MockGoogleGenAI;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenAI = {
       models: {
-        generateContent: vi.fn(),
+        generateContent: vi.fn() as Mock,
       },
     };
-    (GoogleGenAI as any).mockImplementation(() => mockGenAI);
+    const MockedGoogleGenAI = GoogleGenAI as unknown as Mock;
+    MockedGoogleGenAI.mockImplementation(() => mockGenAI);
   });
 
   describe('generateBodyShapePrompt', () => {
@@ -31,8 +34,7 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       expect(prompt).toContain('10 kg lighter');
       expect(prompt).toContain('Fat is reduced');
       expect(prompt).toContain('body becomes slimmer');
-      expect(prompt).toContain('Keep the background, composition, clothing');
-      expect(prompt).toContain('Only change the body shape as specified');
+      expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
 
     it('太るターゲット（BMI増加）の場合、適切なプロンプトを生成する', () => {
@@ -44,7 +46,7 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       expect(prompt).toContain('170 cm tall and weighs 70 kg');
       expect(prompt).toContain('15 kg heavier');
       expect(prompt).toContain('body becomes fuller');
-      expect(prompt).toContain('Keep the background, composition, clothing');
+      expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
 
     it('現在と同じ体重の場合、エラーをスローする', () => {
@@ -63,7 +65,7 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       expect(prompt).toContain('30 kg lighter');
       expect(prompt).toContain('Fat is reduced');
       expect(prompt).toContain('body becomes slimmer');
-      expect(prompt).toContain('Keep the background, composition, clothing');
+      expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
 
     it('すべてのプロンプトに保持指示が含まれている', () => {
@@ -72,8 +74,7 @@ describe('BodyShapeClient - Body Shape Generation', () => {
 
       const prompt = generateBodyShapePrompt(subject, target);
 
-      expect(prompt).toContain('Keep the background, composition, clothing, pose, facial features, and all other elements exactly the same');
-      expect(prompt).toContain('Only change the body shape as specified');
+      expect(prompt).toContain('No changes to any element other than his/her physique will be permitted');
     });
   });
 
@@ -108,12 +109,11 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       }, 'test-api-key');
 
       expect(result.success).toBe(true);
-      expect(result.images).toHaveLength(1);
-      expect(result.images![0].label).toBe('slim');
-      expect(result.images![0].base64).toBe('base64-generated-image');
-      expect(result.images![0].mimeType).toBe('image/png');
-      expect(result.metadata).toBeDefined();
-      expect(result.metadata!.model).toBe('gemini-2.5-flash-image-preview');
+      expect(result.images?.length).toBe(1);
+      expect(result.images?.[0]?.label).toBe('slim');
+      expect(result.images?.[0]?.base64).toBe('base64-generated-image');
+      expect(result.images?.[0]?.mimeType).toBe('image/png');
+      expect(result.metadata?.model).toBe('gemini-2.5-flash-image-preview');
     });
 
     it('複数ターゲットで並列画像生成に成功する', async () => {
@@ -166,9 +166,9 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       }, 'test-api-key');
 
       expect(result.success).toBe(true);
-      expect(result.images).toHaveLength(2);
-      expect(result.images![0].label).toBe('slim');
-      expect(result.images![1].label).toBe('fat');
+      expect(result.images?.length).toBe(2);
+      expect(result.images?.[0]?.label).toBe('slim');
+      expect(result.images?.[1]?.label).toBe('fat');
       expect(mockGenAI.models.generateContent).toHaveBeenCalledTimes(2);
     });
 
@@ -207,9 +207,9 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       }, 'test-api-key');
 
       expect(result.success).toBe(true);
-      expect(result.images).toHaveLength(1);
-      expect(result.images![0].label).toBe('slim');
-      expect(result.metadata!.partialFailures).toBe(1);
+      expect(result.images?.length).toBe(1);
+      expect(result.images?.[0]?.label).toBe('slim');
+      expect(result.metadata?.partialFailures).toBe(1);
     });
 
     it('全ての画像生成が失敗した場合、エラーを返す', async () => {
@@ -308,9 +308,11 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       }, 'test-api-key');
 
       expect(result.success).toBe(true);
-      expect(result.metadata!.processingTimeMs).toBeGreaterThan(90);
-      expect(result.metadata!.model).toBe('gemini-2.5-flash-image-preview');
-      expect(result.metadata!.confidence).toBeGreaterThan(0);
+      expect(result.metadata).toBeDefined();
+      const meta = result.metadata as NonNullable<typeof result.metadata>;
+      expect(meta.processingTimeMs).toBeGreaterThan(90);
+      expect(meta.model).toBe('gemini-2.5-flash-image-preview');
+      expect(meta.confidence).toBeGreaterThan(0);
     });
 
     it('体重変化なしの場合、エラーを返す', async () => {

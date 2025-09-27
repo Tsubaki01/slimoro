@@ -10,7 +10,6 @@ export interface TargetWeight {
 
 export interface BodyShapeOptions {
   returnMimeType?: 'image/png' | 'image/jpeg';
-  preserveBackground?: boolean;
   seed?: number;
 }
 
