@@ -1,5 +1,6 @@
+import type { BodyShapeOptions, GeneratedImage,Subject, TargetWeight } from '@/types';
 import { Env } from '@/types';
-import type { Subject, TargetWeight, BodyShapeOptions, GeneratedImage } from '@/types';
+
 import { GeminiClient } from './gemini-client';
 
 /**

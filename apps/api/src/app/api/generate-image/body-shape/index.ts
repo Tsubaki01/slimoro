@@ -2,11 +2,11 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import demo from './demo';
-
 import { createBodyShapeClient } from '@/lib';
 import { Env } from '@/types';
 import { fileToBase64, ImageConversionError } from '@/utils';
+
+import demo from './demo';
 
 /**
  * 体型変化の画像編集 API モジュール

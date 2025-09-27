@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { GoogleGenAI } from '@google/genai';
+import { beforeEach, describe, expect, it, Mock,vi } from 'vitest';
 
-import { generateBodyShapePrompt, generateBodyShapeImages } from './body-shape-client';
-import type { Subject, TargetWeight, BodyShapeOptions } from '@/types';
+import type { BodyShapeOptions,Subject, TargetWeight } from '@/types';
+
+import { generateBodyShapeImages,generateBodyShapePrompt } from './body-shape-client';
 
 vi.mock('@google/genai');
 
