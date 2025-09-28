@@ -192,6 +192,107 @@ describe('BodyShapeClient - Body Shape Generation', () => {
       expect(result.metadata?.model).toBe('gemini-2.5-flash-image-preview');
     });
 
+    it('GeminiからのmimeTypeを優先して使用する', async () => {
+      mockGenAI.models.generateContent.mockResolvedValue({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    data: 'base64-generated-image',
+                    mimeType: 'image/webp',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
+      const targets: TargetWeight[] = [{ weightKg: 60, label: 'slim' }];
+
+      const result = await generateBodyShapeImages({
+        imageBase64: 'input-base64',
+        mimeType: 'image/jpeg',
+        subject,
+        targets,
+        options: {
+          returnMimeType: 'image/png',
+        },
+      }, 'test-api-key');
+
+      expect(result.success).toBe(true);
+      expect(result.images?.[0]?.mimeType).toBe('image/webp');
+    });
+
+    it('GeminiからmimeTypeがない場合はreturnMimeTypeを使用する', async () => {
+      mockGenAI.models.generateContent.mockResolvedValue({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    data: 'base64-generated-image',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
+      const targets: TargetWeight[] = [{ weightKg: 60, label: 'slim' }];
+
+      const result = await generateBodyShapeImages({
+        imageBase64: 'input-base64',
+        mimeType: 'image/jpeg',
+        subject,
+        targets,
+        options: {
+          returnMimeType: 'image/jpeg',
+        },
+      }, 'test-api-key');
+
+      expect(result.success).toBe(true);
+      expect(result.images?.[0]?.mimeType).toBe('image/jpeg');
+    });
+
+    it('GeminiからもreturnMimeTypeもない場合はデフォルトのimage/pngを使用する', async () => {
+      mockGenAI.models.generateContent.mockResolvedValue({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    data: 'base64-generated-image',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      const subject: Subject = { heightCm: 170, currentWeightKg: 70 };
+      const targets: TargetWeight[] = [{ weightKg: 60, label: 'slim' }];
+
+      const result = await generateBodyShapeImages({
+        imageBase64: 'input-base64',
+        mimeType: 'image/jpeg',
+        subject,
+        targets,
+        options: {},
+      }, 'test-api-key');
+
+      expect(result.success).toBe(true);
+      expect(result.images?.[0]?.mimeType).toBe('image/png');
+    });
+
     it('複数ターゲットで並列画像生成に成功する', async () => {
       mockGenAI.models.generateContent
         .mockResolvedValueOnce({

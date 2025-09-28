@@ -27,6 +27,8 @@ export type GeminiImageGenerationResult = {
   success: boolean;
   /** 生成された画像の Base64 文字列。 */
   imageBase64?: string;
+  /** 生成された画像の MIME タイプ (Gemini から返された場合)。 */
+  mimeType?: string;
   /** 失敗時のエラーメッセージ。 */
   error?: string;
 }
@@ -46,7 +48,7 @@ export type GeminiClientOptions = {
 // 最低限必要なレスポンス形状。SDK の詳細型に依存しないため安全。
 type GenerateContentResponseLike = {
   candidates?: Array<{
-    content?: { parts?: Array<{ inlineData?: { data?: string } }> };
+    content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> };
   }>;
 };
 
@@ -115,9 +117,13 @@ export class GeminiClient {
 
         const response = await this.genAI.models.generateContent(requestPayload);
 
-        const image = this.extractFirstInlineImage(response);
-        if (image) {
-          return { success: true, imageBase64: image };
+        const imageData = this.extractFirstInlineImage(response);
+        if (imageData) {
+          return {
+            success: true,
+            imageBase64: imageData.base64,
+            ...(imageData.mimeType && { mimeType: imageData.mimeType })
+          };
         }
 
         throw new Error('No image generated in response');
@@ -138,9 +144,9 @@ export class GeminiClient {
   }
 
   /**
-   * レスポンスから最初の inline 画像 (Base64) を抽出する。
+   * レスポンスから最初の inline 画像 (Base64) とその MIME タイプを抽出する。
    */
-  private extractFirstInlineImage(response: GenerateContentResponseLike): string | undefined {
+  private extractFirstInlineImage(response: GenerateContentResponseLike): { base64: string; mimeType?: string } | undefined {
     const candidates = response?.candidates ?? [];
     if (!Array.isArray(candidates) || candidates.length === 0) return undefined;
 
@@ -148,7 +154,10 @@ export class GeminiClient {
     const parts = candidates[0]?.content?.parts ?? [];
     for (const part of parts) {
       if (part?.inlineData?.data) {
-        return part.inlineData.data as string;
+        return {
+          base64: part.inlineData.data as string,
+          ...(part.inlineData.mimeType && { mimeType: part.inlineData.mimeType as string })
+        };
       }
     }
     return undefined;

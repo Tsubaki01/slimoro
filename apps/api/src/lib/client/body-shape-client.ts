@@ -182,7 +182,7 @@ export async function generateBodyShapeImages(
   const generatePromises: Array<Promise<GeneratedImage | null>> = targets.map(async (target): Promise<GeneratedImage | null> => {
     try {
       const prompt = generateBodyShapePrompt(subject, target);
-      const { success, imageBase64: generatedImageBase64, error } = await geminiClient.generateImage({
+      const { success, imageBase64: generatedImageBase64, mimeType: returnedMimeType, error } = await geminiClient.generateImage({
         prompt,
         imageBase64,
         mimeType,
@@ -193,7 +193,7 @@ export async function generateBodyShapeImages(
         throw new Error(error || 'No image generated in response');
       }
 
-      const outputMimeType = bodyOptions?.returnMimeType || 'image/png';
+      const outputMimeType = returnedMimeType || bodyOptions?.returnMimeType || 'image/png';
       const generated: GeneratedImage = {
         label: target.label,
         base64: generatedImageBase64,
