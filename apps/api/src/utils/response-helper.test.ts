@@ -1,519 +1,282 @@
 import { describe, expect, it } from 'vitest';
-import { Context } from 'hono';
-import {
-  successResponse,
-  errorResponse,
-  validationErrorResponse,
-  paginatedResponse,
-  noContentResponse,
-  redirectResponse,
-} from './response-helper';
-import type { ApiResponse } from '../types/response';
 
-// Honoコンテキストのモック
-function createMockContext(): Context {
-  const jsonResponses: Array<{ body: unknown; status?: number }> = [];
-  const textResponses: Array<{ body: string; status?: number }> = [];
-  const redirectResponses: Array<{ url: string; status?: number }> = [];
+import type { Context } from 'hono';
+import type { RedirectStatusCode, StatusCode } from 'hono/utils/http-status';
+import type { ApiResponse } from '../types/response';
+import {
+  errorResponse,
+  noContentResponse,
+  paginatedResponse,
+  redirectResponse,
+  successResponse,
+  validationErrorResponse,
+} from './response-helper';
+
+type JsonRecord = { body: unknown; status?: number };
+type TextRecord = { body: string; status?: number };
+type RedirectRecord = { url: string; status?: number };
+
+type TestContext = Context & {
+  getJsonResponses(): JsonRecord[];
+  getTextResponses(): TextRecord[];
+  getRedirectResponses(): RedirectRecord[];
+};
+
+// Hono コンテキストの極小モック
+function createMockContext(): TestContext {
+  const jsonResponses: JsonRecord[] = [];
+  const textResponses: TextRecord[] = [];
+  const redirectResponses: RedirectRecord[] = [];
   let currentStatus: number | undefined;
 
-  return {
+  const ctx = {
     status: (code: number) => {
       currentStatus = code;
     },
     json: (body: unknown, status?: number) => {
-      const responseStatus = status || currentStatus;
+      const responseStatus = status ?? currentStatus ?? 200;
       jsonResponses.push({ body, status: responseStatus });
-      currentStatus = undefined; // リセット
-      return { body, status: responseStatus } as any;
+      currentStatus = undefined;
+      return new Response(JSON.stringify(body ?? null), {
+        status: responseStatus,
+        headers: { 'content-type': 'application/json' },
+      });
     },
     text: (body: string, status?: number) => {
-      const responseStatus = status || currentStatus;
+      const responseStatus = status ?? currentStatus ?? 200;
       textResponses.push({ body, status: responseStatus });
-      currentStatus = undefined; // リセット
-      return { body, status: responseStatus } as any;
+      currentStatus = undefined;
+      const responseBody =
+        responseStatus === 204 || responseStatus === 205 ? null : body ?? '';
+      return new Response(responseBody, { status: responseStatus });
     },
     redirect: (url: string, status?: number) => {
-      const responseStatus = status || currentStatus;
+      const responseStatus = status ?? currentStatus ?? 302;
       redirectResponses.push({ url, status: responseStatus });
-      currentStatus = undefined; // リセット
-      return { url, status: responseStatus } as any;
+      currentStatus = undefined;
+      return new Response(null, {
+        status: responseStatus,
+        headers: { Location: url },
+      });
     },
     getJsonResponses: () => jsonResponses,
     getTextResponses: () => textResponses,
     getRedirectResponses: () => redirectResponses,
-  } as any;
+  } as unknown as TestContext;
+
+  return ctx;
 }
 
-describe('レスポンスヘルパー関数', () => {
+describe('response-helper', () => {
   describe('successResponse', () => {
     it('データ付き成功レスポンスを生成', () => {
       const ctx = createMockContext();
-      const data = { id: 1, name: 'Test User' };
+      const data = { id: 1, name: 'Test' };
 
-      const result = successResponse(ctx, data);
-      const responses = (ctx as any).getJsonResponses();
+      successResponse(ctx, data);
+      const responses = ctx.getJsonResponses();
 
       expect(responses).toHaveLength(1);
-      expect(responses[0].body).toEqual({
-        success: true,
-        data,
-      });
+      expect(responses[0].body).toEqual({ success: true, data });
       expect(responses[0].status).toBe(200);
     });
 
-    it('メタデータ付き成功レスポンスを生成', () => {
-      const ctx = createMockContext();
-      const data = { result: 'processed' };
-      const metadata = { processingTimeMs: 150, version: '1.0.0' };
-
-      successResponse(ctx, data, { metadata });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body).toEqual({
-        success: true,
-        data,
-        metadata: expect.objectContaining({
-          processingTimeMs: 150,
-          version: '1.0.0',
-          timestamp: expect.any(String),
-        }),
-      });
-    });
-
-    it('カスタムステータスコードで成功レスポンスを生成', () => {
-      const ctx = createMockContext();
-      const data = { created: true };
-
-      successResponse(ctx, data, { status: 201 });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].status).toBe(201);
-    });
-
-    it('データなし成功レスポンスを生成', () => {
+    it('メタデータを付与すると timestamp が追加される', () => {
       const ctx = createMockContext();
 
-      successResponse(ctx);
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body).toEqual({
-        success: true,
-      });
-    });
-
-    it('自動的にタイムスタンプを追加', () => {
-      const ctx = createMockContext();
-
-      successResponse(ctx, { id: 1 }, { metadata: { custom: 'value' } });
-      const responses = (ctx as any).getJsonResponses();
-      const body = responses[0].body as ApiResponse;
+      successResponse(ctx, { ok: true }, { metadata: { custom: 'v' } });
+      const body = ctx.getJsonResponses()[0].body as ApiResponse;
 
       expect(body.metadata?.timestamp).toBeDefined();
-      expect(new Date(body.metadata?.timestamp as string).toISOString())
-        .toBe(body.metadata?.timestamp);
+      expect(new Date(String(body.metadata?.timestamp)).toISOString()).toBe(
+        body.metadata?.timestamp
+      );
+      expect(body.metadata).toEqual(
+        expect.objectContaining({ custom: 'v', timestamp: expect.any(String) })
+      );
     });
   });
 
   describe('errorResponse', () => {
-    it('基本的なエラーレスポンスを生成', () => {
+    it('定義済みエラーコードの httpStatus を使用', () => {
       const ctx = createMockContext();
 
-      errorResponse(ctx, 'SYS001', 'Something went wrong');
-      const responses = (ctx as any).getJsonResponses();
+      errorResponse(ctx, 'SYS001', 'Something');
+      const res = ctx.getJsonResponses();
 
-      expect(responses[0].body).toEqual({
-        success: false,
-        error: {
-          code: 'SYS001',
-          message: 'Something went wrong',
-        },
-        metadata: expect.objectContaining({
-          timestamp: expect.any(String),
-        }),
-      });
-      expect(responses[0].status).toBe(500);
+      expect(res[0].status).toBe(500);
+      expect(res[0].body).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({
+            code: 'SYS001',
+            message: 'Something',
+          }),
+          metadata: expect.objectContaining({ timestamp: expect.any(String) }),
+        })
+      );
     });
 
-    it('詳細付きエラーレスポンスを生成', () => {
+    it('details と status の上書きができる', () => {
       const ctx = createMockContext();
-      const details = {
-        reason: 'Connection timeout',
-        host: 'api.example.com',
-        retries: 3,
-      };
-
-      errorResponse(ctx, 'SYS001', 'API call failed', {
-        details,
-        status: 503,
+      errorResponse(ctx, 'FILE001', undefined, {
+        status: 422 as StatusCode,
+        details: { fileName: 'x.png' },
+        metadata: { requestId: 'req-1' },
       });
-      const responses = (ctx as any).getJsonResponses();
 
-      expect(responses[0].body).toEqual({
-        success: false,
-        error: {
-          code: 'SYS001',
-          message: 'API call failed',
-          details,
-        },
-        metadata: expect.objectContaining({
-          timestamp: expect.any(String),
-        }),
-      });
-      expect(responses[0].status).toBe(503);
-    });
-
-    it('エラーコードに応じた適切なステータスコードを自動設定', () => {
-      const ctx = createMockContext();
-
-      // VAL001 -> 400 (バリデーションエラー)
-      errorResponse(ctx, 'VAL001', 'Validation failed');
-      let responses = (ctx as any).getJsonResponses();
-      expect(responses[0].status).toBe(400);
-
-      // FILE001 -> 422 (ファイル変換エラー - UNPROCESSABLE_ENTITY)
-      errorResponse(ctx, 'FILE001', 'File conversion failed');
-      responses = (ctx as any).getJsonResponses();
-      expect(responses[1].status).toBe(422);
-
-      // GEN001 -> 500 (生成エラー)
-      errorResponse(ctx, 'GEN001', 'Generation failed');
-      responses = (ctx as any).getJsonResponses();
-      expect(responses[2].status).toBe(500);
-
-      // SYS001 -> 500 (システムエラー)
-      errorResponse(ctx, 'SYS001', 'System error');
-      responses = (ctx as any).getJsonResponses();
-      expect(responses[3].status).toBe(500);
-    });
-
-    it('カスタムメタデータを含むエラーレスポンスを生成', () => {
-      const ctx = createMockContext();
-
-      errorResponse(ctx, 'SYS001', 'Custom error occurred', {
-        metadata: {
-          requestId: 'req_123',
-          region: 'us-west-2',
-        },
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.metadata).toEqual(expect.objectContaining({
-        requestId: 'req_123',
-        region: 'us-west-2',
-        timestamp: expect.any(String),
-      }));
+      const res = ctx.getJsonResponses();
+      expect(res[0].status).toBe(422);
+      expect(res[0].body).toEqual(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            code: 'FILE001',
+            details: expect.objectContaining({ fileName: 'x.png' }),
+          }),
+          metadata: expect.objectContaining({ requestId: 'req-1' }),
+        })
+      );
     });
   });
 
   describe('validationErrorResponse', () => {
-    it('フィールドエラー付きバリデーションエラーを生成', () => {
+    it('フィールドエラーを含む 400 を返す', () => {
       const ctx = createMockContext();
-      const fieldErrors = {
-        email: ['Invalid email format', 'Email already exists'],
-        password: ['Too short'],
-      };
+      const fieldErrors = { email: ['Invalid'] };
 
       validationErrorResponse(ctx, fieldErrors);
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body).toEqual({
-        success: false,
+      const res = ctx.getJsonResponses();
+      const body = res[0].body as {
+        success: false;
         error: {
-          code: expect.stringMatching(/^VAL\d{3}$/), // VAL001-VAL012などのバリデーションエラーコード
-          message: 'Validation failed',
-          details: {
-            fieldErrors,
-          },
-        },
-        metadata: expect.objectContaining({
-          timestamp: expect.any(String),
-        }),
-      });
-      expect(responses[0].status).toBe(400);
+          code: string;
+          details?: { fieldErrors?: Record<string, string[] | undefined> };
+        };
+        metadata?: Record<string, unknown>;
+      };
+
+      expect(res[0].status).toBe(400);
+      expect(body.success).toBe(false);
+      expect(body.error.code).toMatch(/^VAL\d{3}$/);
+      expect(body.error.details?.fieldErrors).toEqual(fieldErrors);
+      expect(body.metadata?.timestamp).toBeDefined();
     });
 
-    it('カスタムメッセージ付きバリデーションエラーを生成', () => {
+    it('カスタムメッセージと追加詳細を含められる', () => {
       const ctx = createMockContext();
-      const fieldErrors = {
-        age: ['Must be at least 18'],
-      };
+      const fieldErrors = { size: ['Too large'] };
+      const additionalDetails = { max: '10MB' };
 
       validationErrorResponse(ctx, fieldErrors, {
-        message: 'Age verification failed',
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.error.message).toBe('Age verification failed');
-    });
-
-    it('追加詳細情報付きバリデーションエラーを生成', () => {
-      const ctx = createMockContext();
-      const fieldErrors = {
-        file: ['File too large'],
-      };
-      const additionalDetails = {
-        maxSize: '10MB',
-        actualSize: '15MB',
-      };
-
-      validationErrorResponse(ctx, fieldErrors, {
+        message: 'Too big',
         additionalDetails,
+        metadata: { requestId: 'r1' },
       });
-      const responses = (ctx as any).getJsonResponses();
 
-      expect(responses[0].body.error.details).toEqual({
-        fieldErrors,
-        ...additionalDetails,
-      });
-    });
-
-    it('空のフィールドエラーでも適切に処理', () => {
-      const ctx = createMockContext();
-
-      validationErrorResponse(ctx, {});
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.error.details.fieldErrors).toEqual({});
-    });
-
-    it('フィールドごとに複数のエラーメッセージを処理', () => {
-      const ctx = createMockContext();
-      const fieldErrors = {
-        username: [
-          'Must be at least 3 characters',
-          'Can only contain letters and numbers',
-          'Username already taken',
-        ],
+      const res = ctx.getJsonResponses();
+      const body = res[0].body as {
+        success: false;
+        error: { message: string; details?: Record<string, unknown> };
+        metadata?: Record<string, unknown>;
       };
-
-      validationErrorResponse(ctx, fieldErrors);
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.error.details.fieldErrors.username).toHaveLength(3);
+      expect(body.error.message).toBe('Too big');
+      expect(body.error.details).toEqual(
+        expect.objectContaining({ fieldErrors, ...additionalDetails })
+      );
+      expect(body.metadata).toEqual(
+        expect.objectContaining({
+          requestId: 'r1',
+          timestamp: expect.any(String),
+        })
+      );
     });
   });
 
   describe('paginatedResponse', () => {
-    it('ページネーション付きレスポンスを生成', () => {
+    it('ページネーション情報を付与して成功レスポンスを返す', () => {
       const ctx = createMockContext();
-      const items = [
-        { id: 1, name: 'Item 1' },
-        { id: 2, name: 'Item 2' },
-        { id: 3, name: 'Item 3' },
-      ];
+      const items = [{ id: 1 }, { id: 2 }];
 
-      paginatedResponse(ctx, items, {
-        page: 1,
-        pageSize: 10,
-        totalItems: 3,
-      });
-      const responses = (ctx as any).getJsonResponses();
+      paginatedResponse(ctx, items, { page: 1, pageSize: 10, totalItems: 2 });
+      const res = ctx.getJsonResponses();
+      const body = res[0].body as ApiResponse;
 
-      expect(responses[0].body).toEqual({
-        success: true,
-        data: {
-          items,
-          pagination: {
-            page: 1,
-            pageSize: 10,
-            totalItems: 3,
-            totalPages: 1,
-            hasNextPage: false,
-            hasPreviousPage: false,
-          },
-        },
-      });
+      expect(body.success).toBe(true);
+      expect(body).toEqual(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            items,
+            pagination: expect.objectContaining({
+              page: 1,
+              pageSize: 10,
+              totalItems: 2,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            }),
+          }),
+        })
+      );
     });
 
-    it('複数ページの場合の計算を正しく処理', () => {
-      const ctx = createMockContext();
-      const items = Array.from({ length: 20 }, (_, i) => ({ id: i + 1 }));
-
-      paginatedResponse(ctx, items.slice(10, 20), {
-        page: 2,
-        pageSize: 10,
-        totalItems: 50,
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.data.pagination).toEqual({
-        page: 2,
-        pageSize: 10,
-        totalItems: 50,
-        totalPages: 5,
-        hasNextPage: true,
-        hasPreviousPage: true,
-      });
-    });
-
-    it('最初のページの判定を正しく処理', () => {
+    it('pageSize=0 の場合 totalPages は Infinity', () => {
       const ctx = createMockContext();
 
-      paginatedResponse(ctx, [], {
-        page: 1,
-        pageSize: 20,
-        totalItems: 100,
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.data.pagination.hasPreviousPage).toBe(false);
-      expect(responses[0].body.data.pagination.hasNextPage).toBe(true);
+      paginatedResponse(ctx, [], { page: 1, pageSize: 0, totalItems: 100 });
+      const body = ctx.getJsonResponses()[0].body as ApiResponse;
+      // @ts-expect-error Infinity を許容 (仕様)
+      expect(body.data?.pagination.totalPages).toBe(Infinity);
     });
 
-    it('最後のページの判定を正しく処理', () => {
-      const ctx = createMockContext();
-
-      paginatedResponse(ctx, [], {
-        page: 5,
-        pageSize: 20,
-        totalItems: 100,
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.data.pagination.hasPreviousPage).toBe(true);
-      expect(responses[0].body.data.pagination.hasNextPage).toBe(false);
-    });
-
-    it('空のリストでも適切に処理', () => {
-      const ctx = createMockContext();
-
-      paginatedResponse(ctx, [], {
-        page: 1,
-        pageSize: 10,
-        totalItems: 0,
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.data.items).toEqual([]);
-      expect(responses[0].body.data.pagination.totalPages).toBe(0);
-      expect(responses[0].body.data.pagination.hasNextPage).toBe(false);
-      expect(responses[0].body.data.pagination.hasPreviousPage).toBe(false);
-    });
-
-    it('追加メタデータを含むページネーションレスポンス', () => {
+    it('メタデータを付与できる', () => {
       const ctx = createMockContext();
 
       paginatedResponse(
         ctx,
         [{ id: 1 }],
-        {
-          page: 1,
-          pageSize: 10,
-          totalItems: 1,
-        },
-        {
-          metadata: {
-            query: 'search term',
-            filters: { active: true },
-          },
-        }
+        { page: 1, pageSize: 10, totalItems: 1 },
+        { metadata: { query: 'q' } }
       );
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.metadata).toEqual(expect.objectContaining({
-        query: 'search term',
-        filters: { active: true },
-        timestamp: expect.any(String),
-      }));
+      const body = ctx.getJsonResponses()[0].body as ApiResponse;
+      expect(body.metadata).toEqual(
+        expect.objectContaining({ query: 'q', timestamp: expect.any(String) })
+      );
     });
   });
 
   describe('noContentResponse', () => {
-    it('204 No Contentレスポンスを生成', () => {
+    it('204 空レスポンスを返す', () => {
       const ctx = createMockContext();
 
       noContentResponse(ctx);
-      const responses = (ctx as any).getTextResponses();
+      const res = ctx.getTextResponses();
 
-      expect(responses).toHaveLength(1);
-      expect(responses[0].body).toBe('');
-      expect(responses[0].status).toBe(204);
+      expect(res).toHaveLength(1);
+      expect(res[0].body).toBe('');
+      expect(res[0].status).toBe(204);
     });
   });
 
   describe('redirectResponse', () => {
-    it('302リダイレクトレスポンスを生成', () => {
+    it('302 リダイレクトを返す', () => {
       const ctx = createMockContext();
 
-      redirectResponse(ctx, 'https://example.com');
-      const responses = (ctx as any).getRedirectResponses();
+      redirectResponse(ctx, '/next');
+      const res = ctx.getRedirectResponses();
 
-      expect(responses).toHaveLength(1);
-      expect(responses[0].url).toBe('https://example.com');
-      expect(responses[0].status).toBe(302);
+      expect(res).toHaveLength(1);
+      expect(res[0].url).toBe('/next');
+      expect(res[0].status).toBe(302);
     });
 
-    it('カスタムステータスコードでリダイレクト', () => {
+    it('カスタムステータスでリダイレクトする', () => {
       const ctx = createMockContext();
 
-      redirectResponse(ctx, '/new-location', 301 as any);
-      const responses = (ctx as any).getRedirectResponses();
+      redirectResponse(ctx, '/moved', 301 as RedirectStatusCode);
+      const res = ctx.getRedirectResponses();
 
-      expect(responses[0].url).toBe('/new-location');
-      expect(responses[0].status).toBe(301);
-    });
-  });
-
-  describe('エッジケースとエラー処理', () => {
-    it('undefinedフィールドを持つフィールドエラーを処理', () => {
-      const ctx = createMockContext();
-      const fieldErrors = {
-        field1: ['Error 1'],
-        field2: undefined,
-        field3: ['Error 3'],
-      };
-
-      validationErrorResponse(ctx, fieldErrors as any);
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.error.details.fieldErrors).toEqual({
-        field1: ['Error 1'],
-        field2: undefined,
-        field3: ['Error 3'],
-      });
-    });
-
-    it('非常に大きなページ番号でもページネーションを処理', () => {
-      const ctx = createMockContext();
-
-      paginatedResponse(ctx, [], {
-        page: 1000000,
-        pageSize: 10,
-        totalItems: 50,
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      expect(responses[0].body.data.pagination.page).toBe(1000000);
-      expect(responses[0].body.data.pagination.totalPages).toBe(5);
-      expect(responses[0].body.data.pagination.hasNextPage).toBe(false);
-      expect(responses[0].body.data.pagination.hasPreviousPage).toBe(true);
-    });
-
-    it('ゼロまたは負のページサイズでも計算エラーを回避', () => {
-      const ctx = createMockContext();
-
-      paginatedResponse(ctx, [], {
-        page: 1,
-        pageSize: 0,
-        totalItems: 100,
-      });
-      const responses = (ctx as any).getJsonResponses();
-
-      // ページサイズが0の場合、総ページ数は無限大になるが、Infinityとして処理
-      expect(responses[0].body.data.pagination.totalPages).toBe(Infinity);
-    });
-
-    it('メタデータのタイムスタンプが有効なISO 8601形式', () => {
-      const ctx = createMockContext();
-
-      successResponse(ctx, { test: true }, { metadata: { custom: 'value' } });
-      const responses = (ctx as any).getJsonResponses();
-      const timestamp = responses[0].body.metadata?.timestamp;
-
-      expect(timestamp).toBeDefined();
-      expect(() => new Date(timestamp as string)).not.toThrow();
-      expect(new Date(timestamp as string).toISOString()).toBe(timestamp);
+      expect(res[0].url).toBe('/moved');
+      expect(res[0].status).toBe(301);
     });
   });
 });

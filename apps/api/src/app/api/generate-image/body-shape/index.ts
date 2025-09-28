@@ -2,16 +2,16 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { API_ERRORS } from '@/constants';
 import { createBodyShapeClient } from '@/lib';
 import { Env } from '@/types';
 import {
+  errorResponse,
   fileToBase64,
   ImageConversionError,
   successResponse,
-  errorResponse,
   validationErrorResponse,
 } from '@/utils';
-import { API_ERRORS } from '@/constants';
 
 import demo from './demo';
 
@@ -218,45 +218,52 @@ app.post('/', validator, async (c) => {
       return errorResponse(c, 'FILE001', errorMessage);
     }
 
-    // 体重変化なしのターゲットをチェック
-    const noChangeTargets = targets.filter(
+    // ターゲットをパススルーと変更に分離
+    const passthroughTargets = targets.filter(
       (target) => target.weightKg === subject.currentWeightKg
     );
-    if (noChangeTargets.length > 0) {
-      // 体重変化なしの場合、元の画像をそのまま返す
-      const outputMimeType = options?.returnMimeType || 'image/png';
-      const originalImages = noChangeTargets.map((target) => ({
-        label: target.label,
-        base64: base64,
-        mimeType: outputMimeType,
-        width: 1024,
-        height: 1024,
-      }));
+    const changeTargets = targets.filter(
+      (target) => target.weightKg !== subject.currentWeightKg
+    );
 
+    // パススルー画像エントリーを構築（実際のMIMEタイプを使用）
+    const passthroughMimeType = options?.returnMimeType || image.type;
+    const passthroughImages = passthroughTargets.map((target) => ({
+      label: target.label,
+      base64: base64,
+      mimeType: passthroughMimeType,
+      width: 1024,
+      height: 1024,
+    }));
+
+    // 変更ターゲットがない場合はパススルーのみ返す
+    if (changeTargets.length === 0) {
+      const model =
+        passthroughTargets.length > 1 ? 'passthrough-only' : 'original-image';
       return successResponse(
         c,
         {
-          images: originalImages,
+          images: passthroughImages,
         },
         {
           metadata: {
             processingTimeMs: 0,
             confidence: 1.0,
-            model: 'original-image',
+            model: model,
             note: 'No body shape change needed - returning original image',
           },
         }
       );
     }
 
-    // 体型変化専用クライアントを用いて画像を生成
+    // 変更ターゲットのみで体型変化専用クライアントを使用
     const client = createBodyShapeClient(c.env);
 
     const result = await client.generateBodyShapeImages({
       imageBase64: base64,
       mimeType: image.type,
       subject,
-      targets,
+      targets: changeTargets, // 変更ターゲットのみ
       options: options || {},
     });
 
@@ -264,13 +271,49 @@ app.post('/', validator, async (c) => {
       return errorResponse(c, 'GEN002', result.error);
     }
 
+    // 生成画像とパススルー画像をマージし、ラベル順序を保持
+    const mergedImages = targets.map((target) => {
+      if (target.weightKg === subject.currentWeightKg) {
+        // パススルー画像を返す
+        const passthroughImage = passthroughImages.find(
+          (img) => img.label === target.label
+        );
+        if (!passthroughImage) {
+          throw new Error(
+            `Passthrough image not found for label: ${target.label}`
+          );
+        }
+        return passthroughImage;
+      } else {
+        // 生成画像を返す
+        const generatedImage = result.images?.find(
+          (img) => img.label === target.label
+        );
+        if (!generatedImage) {
+          throw new Error(
+            `Generated image not found for label: ${target.label}`
+          );
+        }
+        return generatedImage;
+      }
+    });
+
+    // メタデータを調整
+    const adjustedMetadata = {
+      ...result.metadata,
+      model:
+        passthroughTargets.length > 0
+          ? 'gemini-image-edit-with-passthrough'
+          : result.metadata?.model || 'gemini-image-edit',
+    };
+
     return successResponse(
       c,
       {
-        images: result.images,
+        images: mergedImages,
       },
       {
-        metadata: result.metadata,
+        metadata: adjustedMetadata,
       }
     );
   } catch (error) {

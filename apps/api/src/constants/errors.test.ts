@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+
 import {
   API_ERRORS,
   type ApiErrorKey,
-  getErrorByCode,
   getAllErrorCodes,
+  getErrorByCode,
 } from './errors';
 import { HTTP_STATUS } from './http-status';
 
