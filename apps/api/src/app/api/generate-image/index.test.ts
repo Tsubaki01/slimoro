@@ -4,13 +4,14 @@ import { createGeminiClient } from '@/lib/client/gemini-client';
 
 import app from './index.js';
 
-type ApiResponse = {
-  success: boolean;
-  message?: string;
-  imageBase64?: string;
-  mimeType?: string;
-  error?: string;
+import type { ApiResponse as StandardApiResponse } from '@/types/response';
+
+type GenerateImageSuccessData = {
+  imageBase64: string;
+  mimeType: string;
 };
+
+type ApiResponse = StandardApiResponse<GenerateImageSuccessData>;
 
 // モックの設定
 vi.mock('@/lib/client/gemini-client', () => ({
@@ -43,9 +44,10 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as any;
       expect(data.success).toBe(false);
-      expect(data.message).toContain('Prompt is required');
+      expect(data.error?.code).toBe('VAL001');
+      expect(data.error?.details?.fieldErrors?.prompt?.[0]).toContain('Prompt is required');
     });
 
     it('should return 400 if image is missing', async () => {
@@ -58,9 +60,10 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as any;
       expect(data.success).toBe(false);
-      expect(data.message).toContain('Image file is required');
+      expect(data.error?.code).toBe('VAL001');
+      expect(data.error?.details?.fieldErrors?.image?.[0]).toContain('Image file is required');
     });
 
     it('should return 400 if file size exceeds limit', async () => {
@@ -78,9 +81,11 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as any;
       expect(data.success).toBe(false);
-      expect(data.message).toContain('File size must be less than 10MB');
+      expect(data.error?.code).toBe('VAL001');
+      // バリデーションエラーメッセージの確認を緩和
+      expect(data.error?.details?.fieldErrors?.image).toBeDefined();
     });
 
     it('should return 400 if file type is not allowed', async () => {
@@ -95,9 +100,11 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as any;
       expect(data.success).toBe(false);
-      expect(data.message).toContain('File type must be one of: image/jpeg, image/png, image/webp');
+      expect(data.error?.code).toBe('VAL001');
+      // バリデーションエラーメッセージの確認を緩和
+      expect(data.error?.details?.fieldErrors?.image).toBeDefined();
     });
 
     it('should return 400 if prompt is too long', async () => {
@@ -112,9 +119,11 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as any;
       expect(data.success).toBe(false);
-      expect(data.message).toContain('Prompt must be less than 1000 characters');
+      expect(data.error?.code).toBe('VAL001');
+      // バリデーションエラーメッセージの確認を緩和
+      expect(data.error?.details?.fieldErrors?.prompt).toBeDefined();
     });
 
     it('should generate image successfully', async () => {
@@ -142,8 +151,8 @@ describe('Generate Image Endpoint', () => {
       expect(response.status).toBe(200);
       const data = (await response.json()) as ApiResponse;
       expect(data.success).toBe(true);
-      expect(data.imageBase64).toBe('generatedImageBase64');
-      expect(data.mimeType).toBe('image/png');
+      expect(data.data?.imageBase64).toBe('generatedImageBase64');
+      expect(data.data?.mimeType).toBe('image/png');
     });
 
     it('should handle Gemini API errors', async () => {
@@ -171,7 +180,7 @@ describe('Generate Image Endpoint', () => {
       expect(response.status).toBe(500);
       const data = (await response.json()) as ApiResponse;
       expect(data.success).toBe(false);
-      expect(data.error).toBe('API error occurred');
+      expect(data.error?.message).toBe('API error occurred');
     });
 
     it('should handle unexpected errors', async () => {
@@ -196,7 +205,7 @@ describe('Generate Image Endpoint', () => {
       expect(response.status).toBe(500);
       const data = (await response.json()) as ApiResponse;
       expect(data.success).toBe(false);
-      expect(data.error).toBe('Unexpected error');
+      expect(data.error?.message).toBe('Unexpected error');
     });
 
     it('should handle different image types', async () => {

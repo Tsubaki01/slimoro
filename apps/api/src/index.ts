@@ -24,8 +24,11 @@ app.use(
 // ルートエンドポイント
 app.get('/', (c) => {
   return c.json({
-    message: 'Slimoro API Server',
-    version: '1.0.0',
+    success: true,
+    data: {
+      message: 'Slimoro API Server',
+      version: '1.0.0',
+    },
   });
 });
 
@@ -328,15 +331,15 @@ app.get('/demo', async (c) => {
           }
 
           if (!response.ok) {
-            throw new Error(data.error || data.message || 'エラーが発生しました');
+            throw new Error(data.error?.message || data.message || 'エラーが発生しました');
           }
 
           if (data.success) {
             // 生成画像を表示
-            outputImage.src = \`data:\${data.mimeType};base64,\${data.imageBase64}\`;
+            outputImage.src = \`data:\${data.data.mimeType};base64,\${data.data.imageBase64}\`;
             result.classList.add('show');
           } else {
-            throw new Error(data.error || '画像生成に失敗しました');
+            throw new Error(data.error?.message || '画像生成に失敗しました');
           }
         } catch (err) {
           error.textContent = \`エラー: \${err.message}\`;

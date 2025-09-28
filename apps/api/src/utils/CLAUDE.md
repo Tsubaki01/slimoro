@@ -14,9 +14,11 @@ APIサービス層の共通ユーティリティ関数群です。
 
 ```
 utils/
-├── image-converter.ts    # 画像変換ユーティリティ
-├── image-converter.test.ts # 画像変換テスト
-└── CLAUDE.md            # このファイル
+├── image-converter.ts        # 画像変換ユーティリティ
+├── image-converter.test.ts   # 画像変換テスト
+├── response-helper.ts        # APIレスポンス生成ヘルパー
+├── response-helper.test.ts   # レスポンスヘルパーテスト
+└── CLAUDE.md                # このファイル
 ```
 
 ## Utility Guidelines

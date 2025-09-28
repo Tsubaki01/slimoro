@@ -4,7 +4,14 @@ import { z } from 'zod';
 
 import { createBodyShapeClient } from '@/lib';
 import { Env } from '@/types';
-import { fileToBase64, ImageConversionError } from '@/utils';
+import {
+  fileToBase64,
+  ImageConversionError,
+  successResponse,
+  errorResponse,
+  validationErrorResponse,
+} from '@/utils';
+import { API_ERRORS } from '@/constants';
 
 import demo from './demo';
 
@@ -62,9 +69,7 @@ const targetWeightSchema = z.object({
  */
 const optionsSchema = z.object({
   /** 出力画像の MIME（既定 `image/png`） */
-  returnMimeType: z
-    .enum(['image/png', 'image/jpeg'])
-    .optional(),
+  returnMimeType: z.enum(['image/png', 'image/jpeg']).optional(),
   /** 生成のシード値 */
   seed: z.number().optional(),
 });
@@ -93,8 +98,9 @@ const bodyShapeSchema = z.object({
         return subjectSchema.parse(parsed);
       } catch {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Subject must be valid JSON with heightCm and currentWeightKg',
+          code: 'custom',
+          message:
+            'Subject must be valid JSON with heightCm and currentWeightKg',
         });
         return z.NEVER;
       }
@@ -108,14 +114,14 @@ const bodyShapeSchema = z.object({
         const parsed = JSON.parse(str);
         if (!Array.isArray(parsed)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             message: 'Targets must be an array',
           });
           return z.NEVER;
         }
         if (parsed.length < 1 || parsed.length > 2) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             message: 'Targets array must have 1 to 2 elements',
           });
           return z.NEVER;
@@ -123,7 +129,7 @@ const bodyShapeSchema = z.object({
         return z.array(targetWeightSchema).parse(parsed);
       } catch {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           message: 'Targets must be valid JSON array',
         });
         return z.NEVER;
@@ -140,13 +146,22 @@ const bodyShapeSchema = z.object({
         return optionsSchema.parse(parsed);
       } catch {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           message: 'Options must be valid JSON',
         });
         return z.NEVER;
       }
     }),
 });
+
+function mapBodyShapeFieldToErrorKey(
+  fieldName: string
+): keyof typeof API_ERRORS {
+  if (fieldName === 'image') return 'VAL002';
+  if (fieldName === 'subject') return 'VAL009';
+  if (fieldName === 'targets') return 'VAL010';
+  return 'VAL001';
+}
 
 /**
  * 入力バリデータ。
@@ -158,29 +173,16 @@ const bodyShapeSchema = z.object({
 const validator = zValidator('form', bodyShapeSchema, (result, c) => {
   if (!result.success) {
     const firstError = result.error.issues[0];
-    let message = firstError.message;
+    const fieldName = firstError.path[0] as string;
+    const errorKey = mapBodyShapeFieldToErrorKey(fieldName);
 
-    if (firstError.code === 'invalid_type') {
-      const path = firstError.path[0];
-      if (path === 'image') {
-        message = 'Image file is required';
-      } else if (path === 'subject') {
-        message = 'Subject is required';
-      } else if (path === 'targets') {
-        message = 'Targets is required';
-      }
-    }
-
-    return c.json(
+    return validationErrorResponse(
+      c,
+      (result.error as import('zod').ZodError).flatten().fieldErrors,
       {
-        success: false,
-        code: 'VALIDATION_ERROR',
-        message,
-        details: {
-          fieldErrors: (result.error as import('zod').ZodError).flatten().fieldErrors,
-        },
-      },
-      400
+        message: API_ERRORS[errorKey].message,
+        additionalDetails: { code: API_ERRORS[errorKey].code },
+      }
     );
   }
   return undefined;
@@ -213,22 +215,17 @@ app.post('/', validator, async (c) => {
           ? error.message
           : 'ファイルの変換に失敗しました';
 
-      return c.json(
-        {
-          success: false,
-          code: 'FILE_CONVERSION_ERROR',
-          message: errorMessage,
-        },
-        500
-      );
+      return errorResponse(c, 'FILE001', errorMessage);
     }
 
     // 体重変化なしのターゲットをチェック
-    const noChangeTargets = targets.filter(target => target.weightKg === subject.currentWeightKg);
+    const noChangeTargets = targets.filter(
+      (target) => target.weightKg === subject.currentWeightKg
+    );
     if (noChangeTargets.length > 0) {
       // 体重変化なしの場合、元の画像をそのまま返す
       const outputMimeType = options?.returnMimeType || 'image/png';
-      const originalImages = noChangeTargets.map(target => ({
+      const originalImages = noChangeTargets.map((target) => ({
         label: target.label,
         base64: base64,
         mimeType: outputMimeType,
@@ -236,16 +233,20 @@ app.post('/', validator, async (c) => {
         height: 1024,
       }));
 
-      return c.json({
-        success: true,
-        images: originalImages,
-        metadata: {
-          processingTimeMs: 0,
-          confidence: 1.0,
-          model: 'original-image',
-          note: 'No body shape change needed - returning original image',
+      return successResponse(
+        c,
+        {
+          images: originalImages,
         },
-      });
+        {
+          metadata: {
+            processingTimeMs: 0,
+            confidence: 1.0,
+            model: 'original-image',
+            note: 'No body shape change needed - returning original image',
+          },
+        }
+      );
     }
 
     // 体型変化専用クライアントを用いて画像を生成
@@ -260,29 +261,23 @@ app.post('/', validator, async (c) => {
     });
 
     if (!result.success) {
-      return c.json(
-        {
-          success: false,
-          code: 'GENERATION_ERROR',
-          message: result.error || 'Failed to generate body shape images',
-        },
-        500
-      );
+      return errorResponse(c, 'GEN002', result.error);
     }
 
-    return c.json({
-      success: true,
-      images: result.images,
-      metadata: result.metadata,
-    });
-  } catch (error) {
-    return c.json(
+    return successResponse(
+      c,
       {
-        success: false,
-        code: 'INTERNAL_ERROR',
-        message: error instanceof Error ? error.message : 'Internal server error',
+        images: result.images,
       },
-      500
+      {
+        metadata: result.metadata,
+      }
+    );
+  } catch (error) {
+    return errorResponse(
+      c,
+      'SYS001',
+      error instanceof Error ? error.message : undefined
     );
   }
 });

@@ -563,10 +563,10 @@ app.get('/', async (c) => {
           const data = await response.json();
 
           if (!response.ok) {
-            throw new Error(data.message || 'Failed to generate transformation');
+            throw new Error(data.error?.message || data.message || 'Failed to generate transformation');
           }
 
-          if (data.success && data.images?.length) {
+          if (data.success && data.data?.images?.length) {
             displayResults(data);
           } else {
             throw new Error('No images generated');
@@ -600,7 +600,7 @@ app.get('/', async (c) => {
         }
 
         // Add generated images
-        data.images.forEach((image, index) => {
+        data.data.images.forEach((image, index) => {
           const targetWeight = form[\`target\${index + 1}Weight\`]?.value;
           const bmi = targetWeight ? calculateBMI(form.height.value, targetWeight) : '';
           const meta = \`Target: \${targetWeight}kg\${bmi ? \` (BMI: \${bmi})\` : ''}\`;
@@ -614,14 +614,15 @@ app.get('/', async (c) => {
         });
 
         // Show metadata
-        if (data.metadata) {
+        if (data.metadata || data.data.metadata) {
+          const metadata = data.metadata || data.data.metadata;
           const metaDiv = document.createElement('div');
           metaDiv.style.cssText = 'text-align: center; color: #666; font-size: 12px; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;';
           metaDiv.innerHTML = \`
-            ⏱️ Processing time: \${(data.metadata.processingTimeMs / 1000).toFixed(1)}s |
-            🎯 Confidence: \${(data.metadata.confidence * 100).toFixed(1)}% |
-            🤖 Model: \${data.metadata.model}
-            \${data.metadata.partialFailures ? \`<br>⚠️ \${data.metadata.partialFailures} failed generations\` : ''}
+            ⏱️ Processing time: \${(metadata.processingTimeMs / 1000).toFixed(1)}s |
+            🎯 Confidence: \${(metadata.confidence * 100).toFixed(1)}% |
+            🤖 Model: \${metadata.model}
+            \${metadata.partialFailures ? \`<br>⚠️ \${metadata.partialFailures} failed generations\` : ''}
           \`;
           imagesGrid.appendChild(metaDiv);
         }
