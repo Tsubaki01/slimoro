@@ -17,10 +17,13 @@ describe('Health Check Endpoint', () => {
       const res = await app.request('http://localhost/health');
       const body = await res.json();
 
-      expect(body).toHaveProperty('status', 'ok');
-      expect(body).toHaveProperty('timestamp');
-      expect(body).toHaveProperty('service', 'slimoro-api');
-      expect(body).toHaveProperty('version');
+      expect(body).toHaveProperty('success', true);
+      expect(body).toHaveProperty('data');
+      expect(body.data).toHaveProperty('status', 'ok');
+      expect(body.data).toHaveProperty('service', 'slimoro-api');
+      expect(body.data).toHaveProperty('version');
+      expect(body).toHaveProperty('metadata');
+      expect(body.metadata).toHaveProperty('timestamp');
     });
 
     it('should return correct content-type header', async () => {
@@ -32,7 +35,7 @@ describe('Health Check Endpoint', () => {
       const res = await app.request('http://localhost/health');
       const body = await res.json();
 
-      expect(body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(body.metadata.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     });
   });
 

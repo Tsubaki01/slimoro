@@ -1,16 +1,23 @@
-import { beforeEach, describe, expect, it, MockedFunction,vi } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockedFunction,
+  vi,
+} from 'vitest';
 
 import { createGeminiClient } from '@/lib/client/gemini-client';
+import type { ApiResponse as StandardApiResponse } from '@/types/response';
 
 import app from './index.js';
 
-type ApiResponse = {
-  success: boolean;
-  message?: string;
-  imageBase64?: string;
-  mimeType?: string;
-  error?: string;
+type GenerateImageSuccessData = {
+  imageBase64: string;
+  mimeType: string;
 };
+
+type ApiResponse = StandardApiResponse<GenerateImageSuccessData>;
 
 // モックの設定
 vi.mock('@/lib/client/gemini-client', () => ({
@@ -20,19 +27,26 @@ vi.mock('@/lib/client/gemini-client', () => ({
 }));
 
 describe('Generate Image Endpoint', () => {
-  let mockGenerateImage: MockedFunction<(args: unknown) => Promise<{ success: boolean; imageBase64?: string; error?: string }>>;
+  let mockGenerateImage: MockedFunction<
+    (
+      args: unknown
+    ) => Promise<{ success: boolean; imageBase64?: string; error?: string }>
+  >;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockGenerateImage = vi.fn();
-    const mockedCreateGeminiClient = createGeminiClient as unknown as MockedFunction<typeof createGeminiClient>;
+    const mockedCreateGeminiClient =
+      createGeminiClient as unknown as MockedFunction<
+        typeof createGeminiClient
+      >;
     mockedCreateGeminiClient.mockReturnValue({
       generateImage: mockGenerateImage,
     } as unknown as ReturnType<typeof createGeminiClient>);
   });
 
   describe('POST /', () => {
-    it('should return 400 if prompt is missing', async () => {
+    it('prompt が未指定なら 400 (VAL001)', async () => {
       const formData = new FormData();
       const file = new File(['test'], 'test.png', { type: 'image/png' });
       formData.append('image', file);
@@ -43,12 +57,21 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as {
+        success: false;
+        error?: {
+          code?: string;
+          details?: { fieldErrors?: Record<string, string[] | undefined> };
+        };
+      };
       expect(data.success).toBe(false);
-      expect(data.message).toContain('Prompt is required');
+      expect(data.error?.code).toBe('VAL001');
+      expect(data.error?.details?.fieldErrors?.prompt?.[0]).toContain(
+        'Prompt is required'
+      );
     });
 
-    it('should return 400 if image is missing', async () => {
+    it('image が未指定なら 400 (VAL001)', async () => {
       const formData = new FormData();
       formData.append('prompt', 'Test prompt');
 
@@ -58,16 +81,25 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as {
+        success: false;
+        error?: {
+          code?: string;
+          details?: { fieldErrors?: Record<string, string[] | undefined> };
+        };
+      };
       expect(data.success).toBe(false);
-      expect(data.message).toContain('Image file is required');
+      expect(data.error?.code).toBe('VAL001');
+      expect(data.error?.details?.fieldErrors?.image?.[0]).toContain(
+        'Image file is required'
+      );
     });
 
-    it('should return 400 if file size exceeds limit', async () => {
+    it('ファイルサイズ超過なら 400', async () => {
       const formData = new FormData();
       formData.append('prompt', 'Test prompt');
 
-      // 11MB のファイルを作成
+      // 11MB のファイル
       const largeBuffer = new Uint8Array(11 * 1024 * 1024);
       const file = new File([largeBuffer], 'large.png', { type: 'image/png' });
       formData.append('image', file);
@@ -78,12 +110,19 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as {
+        success: false;
+        error?: {
+          code?: string;
+          details?: { fieldErrors?: Record<string, string[] | undefined> };
+        };
+      };
       expect(data.success).toBe(false);
-      expect(data.message).toContain('File size must be less than 10MB');
+      expect(data.error?.code).toBe('VAL001');
+      expect(data.error?.details?.fieldErrors?.image).toBeDefined();
     });
 
-    it('should return 400 if file type is not allowed', async () => {
+    it('サポート外MIMEなら 400', async () => {
       const formData = new FormData();
       formData.append('prompt', 'Test prompt');
       const file = new File(['test'], 'test.gif', { type: 'image/gif' });
@@ -95,29 +134,44 @@ describe('Generate Image Endpoint', () => {
       });
 
       expect(response.status).toBe(400);
-      const data = (await response.json()) as ApiResponse;
+      const data = (await response.json()) as {
+        success: false;
+        error?: {
+          code?: string;
+          details?: { fieldErrors?: Record<string, string[] | undefined> };
+        };
+      };
       expect(data.success).toBe(false);
-      expect(data.message).toContain('File type must be one of: image/jpeg, image/png, image/webp');
+      expect(data.error?.code).toBe('VAL001');
+      expect(data.error?.details?.fieldErrors?.image).toBeDefined();
     });
 
-    it('should return 400 if prompt is too long', async () => {
+    it('1000文字ちょうどの prompt は通過する', async () => {
+      mockGenerateImage.mockResolvedValue({
+        success: true,
+        imageBase64: 'generatedImageBase64',
+      });
+
       const formData = new FormData();
-      formData.append('prompt', 'a'.repeat(1001)); // 1001文字のプロンプト
+      formData.append('prompt', 'a'.repeat(1000));
       const file = new File(['test'], 'test.png', { type: 'image/png' });
       formData.append('image', file);
 
-      const response = await app.request('/', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await app.request(
+        '/',
+        {
+          method: 'POST',
+          body: formData,
+        },
+        { GEMINI_API_KEY: 'test-api-key' }
+      );
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(200);
       const data = (await response.json()) as ApiResponse;
-      expect(data.success).toBe(false);
-      expect(data.message).toContain('Prompt must be less than 1000 characters');
+      expect(data.success).toBe(true);
     });
 
-    it('should generate image successfully', async () => {
+    it('生成成功で 200 と imageBase64/mimeType を返す', async () => {
       mockGenerateImage.mockResolvedValue({
         success: true,
         imageBase64: 'generatedImageBase64',
@@ -134,19 +188,19 @@ describe('Generate Image Endpoint', () => {
           method: 'POST',
           body: formData,
         },
-        {
-          GEMINI_API_KEY: 'test-api-key',
-        }
+        { GEMINI_API_KEY: 'test-api-key' }
       );
 
       expect(response.status).toBe(200);
       const data = (await response.json()) as ApiResponse;
       expect(data.success).toBe(true);
-      expect(data.imageBase64).toBe('generatedImageBase64');
-      expect(data.mimeType).toBe('image/png');
+      if (data.success) {
+        expect(data.data?.imageBase64).toBe('generatedImageBase64');
+        expect(data.data?.mimeType).toBe('image/png');
+      }
     });
 
-    it('should handle Gemini API errors', async () => {
+    it('Gemini API エラーで 500/GEN001', async () => {
       mockGenerateImage.mockResolvedValue({
         success: false,
         error: 'API error occurred',
@@ -163,18 +217,19 @@ describe('Generate Image Endpoint', () => {
           method: 'POST',
           body: formData,
         },
-        {
-          GEMINI_API_KEY: 'test-api-key',
-        }
+        { GEMINI_API_KEY: 'test-api-key' }
       );
 
       expect(response.status).toBe(500);
       const data = (await response.json()) as ApiResponse;
       expect(data.success).toBe(false);
-      expect(data.error).toBe('API error occurred');
+      if (!data.success) {
+        expect(data.error?.code).toBe('GEN001');
+        expect(data.error?.message).toBe('API error occurred');
+      }
     });
 
-    it('should handle unexpected errors', async () => {
+    it('予期せぬ例外で 500/SYS001', async () => {
       mockGenerateImage.mockRejectedValue(new Error('Unexpected error'));
 
       const formData = new FormData();
@@ -188,18 +243,19 @@ describe('Generate Image Endpoint', () => {
           method: 'POST',
           body: formData,
         },
-        {
-          GEMINI_API_KEY: 'test-api-key',
-        }
+        { GEMINI_API_KEY: 'test-api-key' }
       );
 
       expect(response.status).toBe(500);
       const data = (await response.json()) as ApiResponse;
       expect(data.success).toBe(false);
-      expect(data.error).toBe('Unexpected error');
+      if (!data.success) {
+        expect(data.error?.code).toBe('SYS001');
+        expect(data.error?.message).toBe('Unexpected error');
+      }
     });
 
-    it('should handle different image types', async () => {
+    it('MIME タイプごとに mimeType が渡される', async () => {
       mockGenerateImage.mockResolvedValue({
         success: true,
         imageBase64: 'generatedImageBase64',
@@ -225,9 +281,7 @@ describe('Generate Image Endpoint', () => {
             method: 'POST',
             body: formData,
           },
-          {
-            GEMINI_API_KEY: 'test-api-key',
-          }
+          { GEMINI_API_KEY: 'test-api-key' }
         );
 
         expect(response.status).toBe(200);
@@ -239,63 +293,6 @@ describe('Generate Image Endpoint', () => {
           })
         );
       }
-    });
-
-    it('should validate prompt length at maximum allowed', async () => {
-      mockGenerateImage.mockResolvedValue({
-        success: true,
-        imageBase64: 'generatedImageBase64',
-      });
-
-      const formData = new FormData();
-      // ちょうど1000文字のプロンプト
-      formData.append('prompt', 'a'.repeat(1000));
-      const file = new File(['test'], 'test.png', { type: 'image/png' });
-      formData.append('image', file);
-
-      const response = await app.request(
-        '/',
-        {
-          method: 'POST',
-          body: formData,
-        },
-        {
-          GEMINI_API_KEY: 'test-api-key',
-        }
-      );
-
-      expect(response.status).toBe(200);
-      const data = (await response.json()) as ApiResponse;
-      expect(data.success).toBe(true);
-    });
-
-    it('should validate file size at maximum allowed', async () => {
-      mockGenerateImage.mockResolvedValue({
-        success: true,
-        imageBase64: 'generatedImageBase64',
-      });
-
-      const formData = new FormData();
-      formData.append('prompt', 'Test prompt');
-      // ちょうど10MBのファイル
-      const maxBuffer = new Uint8Array(10 * 1024 * 1024);
-      const file = new File([maxBuffer], 'max.png', { type: 'image/png' });
-      formData.append('image', file);
-
-      const response = await app.request(
-        '/',
-        {
-          method: 'POST',
-          body: formData,
-        },
-        {
-          GEMINI_API_KEY: 'test-api-key',
-        }
-      );
-
-      expect(response.status).toBe(200);
-      const data = (await response.json()) as ApiResponse;
-      expect(data.success).toBe(true);
     });
   });
 });

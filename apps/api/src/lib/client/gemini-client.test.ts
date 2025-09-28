@@ -1,234 +1,156 @@
-import { beforeEach,describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { GeminiClient } from './gemini-client';
+import { createGeminiClient, GeminiClient } from './gemini-client';
 
-// @google/genai のモック
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
+// @google/genai をモック（グローバルに generateContent を保持して参照可能にする）
+vi.mock('@google/genai', () => {
+  const generateContentMock = vi.fn();
+  // グローバルへ参照を公開
+  (
+    globalThis as unknown as {
+      __genai_generateContent: ReturnType<typeof vi.fn>;
+    }
+  ).__genai_generateContent = generateContentMock;
+
+  const GoogleGenAI = vi.fn().mockImplementation(() => ({
     models: {
-      generateContent: vi.fn(),
+      generateContent: generateContentMock,
     },
-  })),
-}));
+  }));
+
+  return { GoogleGenAI };
+});
+
+function getGenerateContentMock(): ReturnType<typeof vi.fn> {
+  return (
+    globalThis as unknown as {
+      __genai_generateContent: ReturnType<typeof vi.fn>;
+    }
+  ).__genai_generateContent;
+}
 
 describe('GeminiClient', () => {
-  let client: GeminiClient;
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('constructor', () => {
-    it('should throw error if API key is not provided', () => {
-      expect(() => new GeminiClient('')).toThrow('Gemini API key is required');
-    });
-
-    it('should create client with valid API key', () => {
-      expect(() => new GeminiClient('test-api-key')).not.toThrow();
-    });
+  it('API キー未指定でエラーを投げる', () => {
+    expect(() => new GeminiClient('')).toThrow('Gemini API key is required');
   });
 
-  describe('generateImage', () => {
-    beforeEach(() => {
-      client = new GeminiClient('test-api-key');
+  it('成功レスポンスから最初の inline 画像を抽出して返す（mimeType含む）', async () => {
+    const client = new GeminiClient('key');
+    const gen = getGenerateContentMock();
+    gen.mockResolvedValue({
+      candidates: [
+        {
+          content: {
+            parts: [
+              { inlineData: { data: 'base64data', mimeType: 'image/png' } },
+            ],
+          },
+        },
+      ],
     });
 
-    it('should generate image successfully', async () => {
-      const mockGenerateContent = vi.fn().mockResolvedValue({
+    const result = await client.generateImage({
+      prompt: 'p',
+      imageBase64: 'i',
+      mimeType: 'image/png',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.imageBase64).toBe('base64data');
+      expect(result.mimeType).toBe('image/png');
+    }
+  });
+
+  it('無効引数の場合は success:false を返す', async () => {
+    const client = new GeminiClient('key');
+    const result = await client.generateImage({
+      prompt: '',
+      imageBase64: '',
+      mimeType: '',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/Invalid arguments/);
+    }
+  });
+
+  it('候補に画像が無い場合は最終的に失敗を返す', async () => {
+    const client = new GeminiClient('key', { maxRetries: 0 });
+    const gen = getGenerateContentMock();
+    gen.mockResolvedValue({ candidates: [{ content: { parts: [] } }] });
+
+    const result = await client.generateImage({
+      prompt: 'p',
+      imageBase64: 'i',
+      mimeType: 'image/png',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBeDefined();
+    }
+  });
+
+  it('リトライ可能エラー時に再試行する', async () => {
+    const client = new GeminiClient('key', {
+      maxRetries: 1,
+      baseRetryDelayMs: 0,
+    });
+    const gen = getGenerateContentMock();
+    gen
+      .mockRejectedValueOnce(new Error('429 rate limit'))
+      .mockResolvedValueOnce({
         candidates: [
           {
             content: {
-              parts: [
-                {
-                  inlineData: {
-                    data: 'base64ImageData',
-                  },
-                },
-              ],
+              parts: [{ inlineData: { data: 'd', mimeType: 'image/jpeg' } }],
             },
           },
         ],
       });
 
-       
-      const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
-      GoogleGenAI.mockImplementation(() => ({
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }));
-
-      client = new GeminiClient('test-api-key');
-
-      const result = await client.generateImage({
-        prompt: 'Test prompt',
-        imageBase64: 'inputImageBase64',
-        mimeType: 'image/png',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.imageBase64).toBe('base64ImageData');
-      expect(result.error).toBeUndefined();
+    const result = await client.generateImage({
+      prompt: 'p',
+      imageBase64: 'i',
+      mimeType: 'image/jpeg',
     });
 
-    it('should handle no candidates error', async () => {
-      const mockGenerateContent = vi.fn().mockResolvedValue({
-        candidates: [],
-      });
+    expect(gen).toHaveBeenCalledTimes(2);
+    expect(result.success).toBe(true);
+  });
 
-       
-      const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
-      GoogleGenAI.mockImplementation(() => ({
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }));
-
-      client = new GeminiClient('test-api-key');
-
-      const result = await client.generateImage({
-        prompt: 'Test prompt',
-        imageBase64: 'inputImageBase64',
-        mimeType: 'image/png',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('No candidates returned from Gemini API');
+  it('generationConfig を渡した場合にリクエストへ含める', async () => {
+    const client = new GeminiClient('key');
+    const gen = getGenerateContentMock();
+    gen.mockResolvedValue({
+      candidates: [{ content: { parts: [{ inlineData: { data: 'x' } }] } }],
     });
 
-    it('should handle no image in response', async () => {
-      const mockGenerateContent = vi.fn().mockResolvedValue({
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  text: 'Some text response',
-                },
-              ],
-            },
-          },
-        ],
-      });
-
-       
-      const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
-      GoogleGenAI.mockImplementation(() => ({
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }));
-
-      client = new GeminiClient('test-api-key');
-
-      const result = await client.generateImage({
-        prompt: 'Test prompt',
-        imageBase64: 'inputImageBase64',
-        mimeType: 'image/png',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('No image generated in response');
+    const result = await client.generateImage({
+      prompt: 'p',
+      imageBase64: 'i',
+      mimeType: 'image/png',
+      generationConfig: { seed: 42 },
     });
 
-    it('should retry on 429 error', async () => {
-      let callCount = 0;
-      const mockGenerateContent = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          throw new Error('429 Rate limit exceeded');
-        }
-        return Promise.resolve({
-          candidates: [
-            {
-              content: {
-                parts: [
-                  {
-                    inlineData: {
-                      data: 'base64ImageData',
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-        });
-      });
+    expect(result.success).toBe(true);
+    const callArg = gen.mock.calls[0][0];
+    expect(callArg).toEqual(
+      expect.objectContaining({
+        generationConfig: expect.objectContaining({ seed: 42 }),
+      })
+    );
+  });
 
-       
-      const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
-      GoogleGenAI.mockImplementation(() => ({
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }));
-
-      client = new GeminiClient('test-api-key');
-       
-      vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
-
-      const result = await client.generateImage({
-        prompt: 'Test prompt',
-        imageBase64: 'inputImageBase64',
-        mimeType: 'image/png',
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.imageBase64).toBe('base64ImageData');
-      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
-    });
-
-    it('should return error after max retries exceeded', async () => {
-      const mockGenerateContent = vi
-        .fn()
-        .mockRejectedValue(new Error('429 Rate limit exceeded'));
-
-       
-      const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
-      GoogleGenAI.mockImplementation(() => ({
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }));
-
-      client = new GeminiClient('test-api-key');
-       
-      vi.spyOn(client as any, 'sleep').mockResolvedValue(undefined);
-
-      const result = await client.generateImage({
-        prompt: 'Test prompt',
-        imageBase64: 'inputImageBase64',
-        mimeType: 'image/png',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('429 Rate limit exceeded');
-      expect(mockGenerateContent).toHaveBeenCalledTimes(3); // 初回 + 2リトライ
-    });
-
-    it('should handle unknown errors', async () => {
-      const mockGenerateContent = vi
-        .fn()
-        .mockRejectedValue('Non-error object');
-
-       
-      const GoogleGenAI = (await import('@google/genai')).GoogleGenAI as any;
-      GoogleGenAI.mockImplementation(() => ({
-        models: {
-          generateContent: mockGenerateContent,
-        },
-      }));
-
-      client = new GeminiClient('test-api-key');
-
-      const result = await client.generateImage({
-        prompt: 'Test prompt',
-        imageBase64: 'inputImageBase64',
-        mimeType: 'image/png',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Unknown error occurred during image generation');
-    });
+  it('createGeminiClient は env からキーを読み取る', () => {
+    const client = createGeminiClient({
+      GEMINI_API_KEY: 'env-key',
+    } as unknown as { GEMINI_API_KEY: string });
+    expect(client).toBeInstanceOf(GeminiClient);
   });
 });

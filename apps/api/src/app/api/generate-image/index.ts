@@ -2,9 +2,18 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { API_ERRORS } from '@/constants';
 import { createGeminiClient } from '@/lib';
 import { Env } from '@/types';
-import { fileToBase64, ImageConversionError } from '@/utils';
+import {
+  errorResponse,
+  fileToBase64,
+  ImageConversionError,
+  successResponse,
+  validationErrorResponse,
+} from '@/utils';
+
+import bodyShape from './body-shape';
 
 const app = new Hono<Env>();
 
@@ -45,37 +54,31 @@ const generateImageSchema = z.object({
  * @param c - Honoコンテキスト
  * @returns バリデーションエラーレスポンス
  */
-const validator = zValidator('form', generateImageSchema, 
-  (
-    result,
-    c
-  ) => {
-    if (!result.success) {
-      // 最初のエラーメッセージを取得
-      const firstError = result.error.issues[0];
-      let message = firstError.message;
-  
-      // 特殊なケース：promptやimageが未定義の場合
-      if (firstError.code === 'invalid_type') {
-        const path = firstError.path[0];
-        if (path === 'prompt') {
-          message = 'Prompt is required';
-        } else if (path === 'image') {
-          message = 'Image file is required';
-        }
-      }
-  
-      return c.json(
-        {
-          success: false,
-          message,
-        },
-        400
-      );
-    }
-    return;
+function mapGenerateImageFieldToErrorKey(
+  fieldName: string
+): keyof typeof API_ERRORS {
+  if (fieldName === 'prompt') return 'VAL001';
+  if (fieldName === 'image') return 'VAL002';
+  return 'VAL001';
+}
+const validator = zValidator('form', generateImageSchema, (result, c) => {
+  if (!result.success) {
+    const firstError = result.error.issues[0];
+    const fieldName = firstError.path[0] as string;
+    const errorKey = mapGenerateImageFieldToErrorKey(fieldName);
+
+    // 期待されるユーザ向けメッセージへ正規化
+    const fieldErrors: Record<string, string[] | undefined> = {
+      [fieldName]: [API_ERRORS[errorKey].message],
+    };
+
+    return validationErrorResponse(c, fieldErrors, {
+      message: API_ERRORS[errorKey].message,
+      additionalDetails: { code: API_ERRORS[errorKey].code },
+    });
   }
-);
+  return;
+});
 
 /**
  * 画像生成エンドポイント
@@ -99,17 +102,12 @@ app.post(
       try {
         base64 = await fileToBase64(image);
       } catch (error) {
-        const errorMessage = error instanceof ImageConversionError
-          ? error.message
-          : 'ファイルの変換に失敗しました';
+        const errorMessage =
+          error instanceof ImageConversionError
+            ? error.message
+            : 'ファイルの変換に失敗しました';
 
-        return c.json(
-          {
-            success: false,
-            error: errorMessage,
-          },
-          500
-        );
+        return errorResponse(c, 'FILE001', errorMessage);
       }
 
       // 3. Gemini APIクライアントの作成
@@ -124,32 +122,25 @@ app.post(
 
       // 5. API呼び出し結果の検証
       if (!result.success) {
-        return c.json(
-          {
-            success: false,
-            error: result.error || 'Failed to generate image',
-          },
-          500
-        );
+        return errorResponse(c, 'GEN001', result.error);
       }
 
       // 6. 成功レスポンスの返却
-      return c.json({
-        success: true,
+      return successResponse(c, {
         imageBase64: result.imageBase64,
         mimeType: 'image/png',
       });
     } catch (error) {
       // 7. エラーハンドリング
-      return c.json(
-        {
-          success: false,
-          error: error instanceof Error ? error.message : 'Internal server error',
-        },
-        500
+      return errorResponse(
+        c,
+        'SYS001',
+        error instanceof Error ? error.message : undefined
       );
     }
   }
 );
+
+app.route('/body-shape', bodyShape);
 
 export default app;
