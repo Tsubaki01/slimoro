@@ -3,15 +3,16 @@ import {
   describe,
   expect,
   it,
-  vi,
   type MockedFunction,
+  vi,
 } from 'vitest';
 
 import { createBodyShapeClient } from '@/lib';
 import type {
   BodyShapeGenerationOptions,
   BodyShapeGenerationResult,
-} from '@/lib/client/body-shape-client';
+} from '@/types';
+
 import app from './index.js';
 
 // lib のモック（体型変化クライアント）

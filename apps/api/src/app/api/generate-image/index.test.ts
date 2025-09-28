@@ -3,12 +3,13 @@ import {
   describe,
   expect,
   it,
-  vi,
   type MockedFunction,
+  vi,
 } from 'vitest';
 
 import { createGeminiClient } from '@/lib/client/gemini-client';
 import type { ApiResponse as StandardApiResponse } from '@/types/response';
+
 import app from './index.js';
 
 type GenerateImageSuccessData = {
