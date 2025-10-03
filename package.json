@@ -14,7 +14,12 @@
     "api:dev": "nx serve api",
     "api:build": "nx build api",
     "api:test": "nx test api",
-    "api:lint": "nx lint api"
+    "mobile:start": "nx run mobile:start",
+    "mobile:android": "nx run mobile:run-android",
+    "mobile:ios": "nx run mobile:run-ios",
+    "mobile:web": "nx run mobile:web",
+    "mobile:lint": "nx run mobile:lint",
+    "mobile:prebuild": "nx run mobile:prebuild"
   },
   "private": true,
   "devDependencies": {
