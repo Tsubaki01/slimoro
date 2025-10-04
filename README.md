@@ -1,90 +1,171 @@
 # Slimoro
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+**Slimoro（スリモロ）** は、ダイエットが続かない人向けのAI搭載ダイエット支援スマートフォンアプリです。
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+## 主要機能
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+- **毎日の体型撮影と記録**: 体重、体脂肪率などの健康データを簡単に記録
+- **AI画像生成**: 現在の写真から「痩せた未来の姿」と「太った未来の姿」をAIが自動生成
+- **データ可視化**: 体重や体脂肪率の推移をグラフで確認
+- **モチベーション維持**: AI生成画像を見ることで、ダイエットのやる気を継続
 
-## Finish your CI setup
+## プロジェクト構成
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/g7F2RZpnq1)
+このリポジトリは[Nx](https://nx.dev)を使用したモノレポ構成で、以下のアプリケーションとパッケージを含みます：
 
-
-## Generate a library
-
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
+```
+slimoro/
+├── apps/
+│   ├── api/          # バックエンドAPI (Cloudflare Workers + Hono)
+│   └── mobile/       # モバイルアプリ (React Native + Expo)
+└── packages/         # 共有パッケージ（将来的に追加予定）
 ```
 
-## Run tasks
+## 技術スタック
 
-To build the library use:
+### フロントエンド（Mobile）
+- React Native
+- Expo (~54.0.12)
+- Expo Router
+- TypeScript
 
-```sh
-npx nx build pkg1
+### バックエンド（API）
+- Hono (Webフレームワーク)
+- Cloudflare Workers
+- Google Gemini API (AI画像生成)
+- Zod (バリデーション)
+
+### 開発ツール
+- Nx (モノレポ管理)
+- pnpm (パッケージマネージャー)
+- Vitest (テスト)
+- ESLint (Lint)
+- TypeScript
+
+## セットアップ
+
+### 前提条件
+
+- Node.js v20以上
+- pnpm
+
+### インストール
+
+```bash
+# 依存関係のインストール
+pnpm install
 ```
 
-To run any task with Nx use:
+## 開発コマンド
 
-```sh
+### モバイルアプリ開発
+
+```bash
+# 開発サーバー起動
+pnpm mobile:start
+
+# Android
+pnpm mobile:android
+
+# iOS
+pnpm mobile:ios
+
+# Web
+pnpm mobile:web
+
+# Lint
+pnpm mobile:lint
+```
+
+詳細は [apps/mobile/README.md](apps/mobile/README.md) を参照してください。
+
+### API開発
+
+```bash
+# 開発サーバー起動（ポート8788）
+pnpm api:dev
+
+# ビルド
+pnpm api:build
+
+# テスト
+pnpm api:test
+```
+
+詳細は [apps/api/README.md](apps/api/README.md) を参照してください。
+
+### 全体コマンド
+
+```bash
+# すべてのプロジェクトのLint
+pnpm lint
+
+# Lint自動修正
+pnpm lint:fix
+
+# すべてのプロジェクトの型チェック
+pnpm typecheck
+
+# すべてのプロジェクトのビルド
+pnpm build
+
+# すべてのプロジェクトのテスト
+pnpm test
+
+# テスト（ウォッチモード）
+pnpm test:watch
+
+# 変更されたプロジェクトのみテスト
+pnpm test:affected
+```
+
+## プロジェクトグラフの可視化
+
+```bash
+npx nx graph
+```
+
+Nxの依存関係グラフを視覚的に確認できます。
+
+## Nx について
+
+このプロジェクトは[Nx](https://nx.dev)を使用しています。Nxは以下の機能を提供します：
+
+- **モノレポ管理**: 複数のアプリケーションとライブラリを1つのリポジトリで管理
+- **タスク実行の最適化**: 影響を受けるプロジェクトのみをテスト・ビルド
+- **キャッシング**: ビルドやテストの結果をキャッシュして高速化
+- **依存関係の可視化**: プロジェクト間の依存関係をグラフで表示
+
+### Nxの便利なコマンド
+
+```bash
+# 特定のプロジェクトのタスク実行
 npx nx <target> <project-name>
-```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+# 例: APIのテスト
+npx nx test api
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+# 例: モバイルアプリのLint
+npx nx lint mobile
 
-## Versioning and releasing
+# 影響を受けるプロジェクトのみテスト
+npx nx affected -t test
 
-To version and release the library use
-
-```
-npx nx release
-```
-
-Pass `--dry-run` to see what would happen without actually releasing the library.
-
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Keep TypeScript project references up to date
-
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
-
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
-
-```sh
+# TypeScriptプロジェクト参照の同期
 npx nx sync
-```
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
-
-```sh
+# CI環境での同期チェック
 npx nx sync:check
 ```
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+## 開発ガイドライン
 
+このプロジェクトでは以下のガイドラインに従って開発を進めてください：
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- **CLAUDE.md**: プロジェクト固有の開発ガイドラインは [CLAUDE.md](CLAUDE.md) を参照
+- **TDD**: テスト駆動開発を推奨
+- **Clean Architecture**: ドメイン層、アプリケーション層、インフラ層、インターフェース層の分離
 
-## Install Nx Console
+## ライセンス
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+MIT

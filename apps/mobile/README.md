@@ -1,50 +1,125 @@
-# Welcome to your Expo app 👋
+# Slimoro Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Slimoroのモバイルアプリケーションです。React NativeとExpoを使用して、iOS・Android・Webに対応したクロスプラットフォームアプリを構築しています。
 
-## Get started
+## 技術スタック
 
-1. Install dependencies
+- **フレームワーク**: [React Native](https://reactnative.dev/) - クロスプラットフォームモバイル開発
+- **開発プラットフォーム**: [Expo](https://expo.dev/) (~54.0.12) - React Native開発ツール
+- **ルーティング**: [Expo Router](https://docs.expo.dev/router/introduction/) (~6.0.10) - ファイルベースルーティング
+- **ナビゲーション**: [@react-navigation](https://reactnavigation.org/) - ナビゲーションライブラリ
+- **UI**: React Native + Expo標準コンポーネント
+- **アニメーション**: react-native-reanimated, react-native-gesture-handler
+- **言語**: TypeScript (~5.9.2)
 
-   ```bash
-   npm install
-   ```
+## 開発コマンド
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 開発サーバー起動
 
 ```bash
-npm run reset-project
+# ルートディレクトリから
+pnpm mobile:start
+
+# または apps/mobile ディレクトリから
+pnpm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+起動後、以下の方法でアプリを実行できます：
+- `a` - Androidエミュレーター/実機で開く
+- `i` - iOSシミュレーター/実機で開く
+- `w` - Webブラウザで開く
+- QRコード - Expo Goアプリでスキャン
 
-## Learn more
+### プラットフォーム別起動
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+# Android
+pnpm mobile:android
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+# iOS
+pnpm mobile:ios
 
-## Join the community
+# Web
+pnpm mobile:web
+```
 
-Join our community of developers creating universal apps.
+### ビルド・プリビルド
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+# ネイティブプロジェクトの生成
+pnpm mobile:prebuild
+
+# または
+nx run mobile:prebuild
+```
+
+### Lint
+
+```bash
+# ルートディレクトリから
+pnpm mobile:lint
+
+# または apps/mobile ディレクトリから
+pnpm lint
+```
+
+## プロジェクト構成
+
+```
+apps/mobile/
+├── app/                  # Expo Routerのルート（ファイルベースルーティング）
+│   ├── (tabs)/          # タブナビゲーション
+│   ├── +not-found.tsx   # 404ページ
+│   └── _layout.tsx      # ルートレイアウト
+├── assets/              # 画像・フォントなどの静的リソース
+├── components/          # 再利用可能なReactコンポーネント
+├── constants/           # 定数定義
+├── hooks/               # カスタムフック
+├── scripts/             # ビルド・開発用スクリプト
+├── app.json             # Expo設定
+├── package.json
+├── project.json         # Nx プロジェクト設定
+└── tsconfig.json
+```
+
+## 開発環境のセットアップ
+
+### 前提条件
+
+- Node.js (推奨: v20以上)
+- pnpm
+- iOS開発の場合: Xcode (macOSのみ)
+- Android開発の場合: Android Studio
+
+### 初回セットアップ
+
+1. 依存関係のインストール（プロジェクトルートで実行）:
+```bash
+pnpm install
+```
+
+2. 開発サーバーの起動:
+```bash
+pnpm mobile:start
+```
+
+## Expo Router について
+
+このプロジェクトでは[Expo Router](https://docs.expo.dev/router/introduction/)を使用しています。
+
+- `app/` ディレクトリ内のファイル構造がそのままルーティングになります
+- `(tabs)/` のような括弧付きディレクトリはグループ化のためのもので、URLには含まれません
+- `_layout.tsx` はレイアウトコンポーネントを定義します
+
+## デバッグ
+
+開発中は以下のツールが利用できます：
+- **React DevTools**: デバッグ用
+- **Expo Go**: 実機でのクイックテスト
+- **Development Build**: より本番に近い環境でのテスト
+
+## 参考リンク
+
+- [Expo公式ドキュメント](https://docs.expo.dev/)
+- [React Nativeドキュメント](https://reactnative.dev/docs/getting-started)
+- [Expo Routerガイド](https://docs.expo.dev/router/introduction/)
