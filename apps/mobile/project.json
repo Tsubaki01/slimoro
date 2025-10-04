@@ -36,10 +36,7 @@
     "lint": {
       "executor": "@nx/eslint:lint",
       "options": {
-        "lintFilePatterns": [
-          "apps/mobile/**/*.{ts,tsx,js,jsx,cjs,mjs,cts,mts}",
-          "apps/mobile/eslint.config.js"
-        ]
+        "lintFilePatterns": ["apps/mobile/**/*.{ts,tsx,js,jsx,cjs,mjs,cts,mts}"]
       }
     },
     "prebuild": {
